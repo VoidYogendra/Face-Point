@@ -112,7 +112,7 @@ class Encoder {
         mWidth=width
         mHeight=height
 
-        mBitRate = 2000000
+        mBitRate = 5000000
         mBufferInfo = MediaCodec.BufferInfo()
 
         val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height)

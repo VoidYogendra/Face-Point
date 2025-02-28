@@ -1,12 +1,14 @@
 package com.avoid.facepoint
 
 import android.Manifest
+import android.R.attr.height
+import android.R.attr.width
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.opengl.EGL14
-import android.opengl.GLES11Ext
 import android.opengl.GLES31
 import android.opengl.GLSurfaceView
 import android.os.Bundle
@@ -27,13 +29,11 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import com.Void.gifencoder.Recorder.Encoder
-
-import com.Void.gifencoder.Recorder.Encoder.Companion.computePresentationTimeNsec
-import com.avoid.facepoint.VoidRender.Companion
 import com.avoid.facepoint.databinding.MainActivityBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var glSurface: GLSurfaceView
@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity() {
                 val encoder = Encoder()
                 var record = false
                 var x = 0
-                val boi= BitmapFactory.decodeStream(context.assets.open("deku.jpeg"))
+//                val boi = BitmapFactory.decodeStream(context.assets.open("deku.jpeg"))
                 CoroutineScope(Dispatchers.IO).launch {
                     var lastFrameTime = 0L
                     val frameInterval = 33_333_333L
@@ -131,13 +131,17 @@ class MainActivity : AppCompatActivity() {
                             val tempt = x
                             if (!record) {
                                 // TODO: implement pass fbo and fix rotation
-                                encoder.prepareEncoder(boi.width*2, boi.height*2,renderer.eglContext!!)
+                                encoder.prepareEncoder(
+                                    res.height ,
+                                    res.width ,
+                                    EGL14.EGL_NO_CONTEXT
+                                )
                                 handler.post {
                                     encoder.mInputSurface!!.makeCurrent()
                                     renderer.onSurfaceCreated2D()
-                                    renderer.onSurfaceChanged(boi.width*2,boi.height*2)
-//                                    GLES31.glUseProgram(renderer.programOES)
-                                    Log.e(TAG, "startCamera: INIT")
+                                    //since camera will return in rotated res ie if portrait res is w 1080 h 1920 it will come as w 1920 h 1080
+                                    renderer.onSurfaceChanged(res.height, res.width)
+                                    Log.e(TAG, "startCamera: INIT  render ${renderer.width} ${renderer.height}  res ${res.width} ${res.height}")
                                 }
                                 record = true
                             } else {
@@ -147,16 +151,15 @@ class MainActivity : AppCompatActivity() {
                                     handler.post {
 
 //                                        Log.e(TAG, "startCamera: WTF")
-                                        Log.e(TAG, "startCamera: ${renderer.textureID2D} ${GLES31.glIsTexture(renderer.textureID2D)}", )
+//                                        Log.e(TAG, "startCamera: ${renderer.textureID2D} ${GLES31.glIsTexture(renderer.textureID2D)}", )
 //                                        encoder.generateSurfaceFrame(tempt)
-                                        GLES31.glUseProgram(renderer.program2D)
-                                        renderer.onDraw(boi)
+                                        renderer.onDraw()
+
 
                                         encoder.mInputSurface!!.setPresentationTime(
                                             frameTimeNanos
                                         )
                                         encoder.mInputSurface!!.swapBuffers()
-                                        GLES31.glUseProgram(renderer.programOES)
                                     }
                                 }
                                 x++
