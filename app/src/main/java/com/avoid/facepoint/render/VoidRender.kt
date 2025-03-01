@@ -1,17 +1,11 @@
-package com.avoid.facepoint
+package com.avoid.facepoint.render
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.EGL14
 import android.opengl.EGLContext
-import android.opengl.GLES11Ext
 import android.opengl.GLSurfaceView
-import android.opengl.GLUtils
 import android.opengl.Matrix
-import android.os.Handler
-import android.os.HandlerThread
-import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -25,33 +19,21 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private const val TAG = "VoidRender"
         private const val FLOAT_SIZE_BYTES = 4
         private const val STRIDES = 4 * FLOAT_SIZE_BYTES
-        private external fun read(textureID:Int,width: Int,height: Int,channel:Int)
-        private external fun write(textureID:Int,width: Int,height: Int)
+        private external fun read(textureID: Int, width: Int, height: Int, channel: Int)
+        private external fun write(textureID: Int, width: Int, height: Int)
+        const val GL_TEXTURE_EXTERNAL_OES: Int = 36197
     }
 
     private lateinit var surfaceTexture: SurfaceTexture
 
     var width = 0
     var height = 0
-    var textureWidth = 0
-    var textureHeight = 0
-    var onDrawCallback: (() -> Unit?)? = null
-    var eglContext: EGLContext? = null
+    private var textureWidth = 0
+    private var textureHeight = 0
+    private var onDrawCallback: (() -> Unit?)? = null
+    private var eglContext: EGLContext? = null
         private set
 
-//    private val vertices = floatArrayOf(
-//        1f, -1f,
-//        -1f, -1f,
-//        1f, 1f,
-//        -1f, 1f
-//    )
-//
-//    private val textureVertices = floatArrayOf(
-//        0.0f, 0.0f,
-//        0.0f, 1.0f,
-//        1.0f, 0.0f,
-//        1.0f, 1.0f
-//    )
 
     private val vertexData = floatArrayOf(
         // Position (x, y)   // Texture (u, v)
@@ -68,78 +50,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         -1f, 1f, 0f, 0f,// Top-left
         1f, 1f, 1f, 0f// Top-right
     )
-    private val vertices = floatArrayOf(
-        -1f, -1f,
-        1f, -1f,
-        -1f, 1f,
-        1f, 1f
-    )
 
-    private val textureVertices = floatArrayOf(
-        0f, 1f,
-        1f, 1f,
-        0f, 0f,
-        1f, 0f
-    )
-//    private val vertexShaderCode =
-//        "attribute vec4 aPosition;" +
-//                "attribute vec2 aTexPosition;" +
-//                "varying vec2 vTexPosition;" +
-//                "void main() {" +
-//                "  gl_Position = aPosition;" +
-//                "  vTexPosition = aTexPosition;" +
-//                "}"
-
-    private val vertexShaderCodeWithMatrix =
-        "attribute vec4 aPosition;" +
-                "attribute vec2 aTexPosition;" +
-                "varying vec2 vTexPosition;" +
-                "uniform mat4 u_Matrix;" +
-                "void main() {" +
-                "  gl_Position = u_Matrix*aPosition;" +
-                "  vTexPosition = aTexPosition;" +
-                "}"
-
-    private val fragmentShaderCode =
-        "precision mediump float;" +
-                "uniform sampler2D uTexture;" +
-                "varying vec2 vTexPosition;" +
-                "void main() " +
-                "{" +
-                "gl_FragColor = texture2D(uTexture, vTexPosition);" +
-                "}"
-
-    private val fragmentShaderCodeOES =
-        "#extension GL_OES_EGL_image_external : require\n" +
-                "precision mediump float;\n" +
-                "uniform samplerExternalOES uTexture;\n" +
-                "varying vec2 vTexPosition;\n" +
-                "void main() {\n" +
-                "    gl_FragColor = texture2D(uTexture, vTexPosition);\n" +
-                "}"
-
-    //    private var verticesBuffer: FloatBuffer? = ByteBuffer.allocateDirect(vertices.size * FLOAT_SIZE_BYTES)
-//        .order(ByteOrder.nativeOrder())
-//        .asFloatBuffer()
-//        .apply {
-//            put(vertices)
-//            position(0)
-//        }
-//
-//    private val textureBuffer: FloatBuffer =
-//        ByteBuffer.allocateDirect(textureVertices.size * FLOAT_SIZE_BYTES)
-//            .order(ByteOrder.nativeOrder())
-//            .asFloatBuffer()
-//            .apply {
-//                put(textureVertices)
-//                position(0)
-//            }
     private var vertexShader = 0
     private var vertexShader2D = 0
     private var fragmentShaderOES = 0
     private var fragmentShader = 0
-    var programOES = 0
-    var program2D = 0
+    private var programOES = 0
+    private var program2D = 0
 
     private var positionHandle = 0
     private var positionHandle2D = 0
@@ -147,10 +64,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var texturePositionHandle2D = 0
     private var textureHandle = 0
     private var textureHandle2D = 0
-    var matrixHandle = 0
-    var matrixHandle2D = 0
+    private var matrixHandle = 0
+    private var matrixHandle2D = 0
 
-    val vao = IntArray(1)
+    private val vao = IntArray(1)
     private val vbo = IntArray(1)
 
     val vao2D = IntArray(1)
@@ -159,15 +76,15 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private val textures = IntArray(1)
     private val textures2D = IntArray(1)
 
-    var textureID = 0
-    var textureID2D = 0
+    var textureID = -1
+    var textureID2D = -1
 
     var aspectMatrix = FloatArray(16)
     var aspectMatrix2D = FloatArray(16)
 
     fun onSurfaceCreated2D() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, vertexShaderCodeWithMatrix)
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, fragmentShaderCode)
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -229,8 +146,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, vertexShaderCodeWithMatrix)
-        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, fragmentShaderCodeOES)
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
+        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "main_fragOES.glsl")
 
         programOES = gl.glCreateProgram()
         gl.glAttachShader(programOES, vertexShader)
@@ -343,23 +260,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo[0])
         gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
         gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures[0])
+        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
         surfaceTexture.updateTexImage()
         gl.glUniform1i(textureHandle, 0)
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
         if (byteSize > 0) {
-//            gl.glReadPixels(
-//                0,
-//                0,
-//                textureWidth,
-//                textureHeight,
-//                gl.GL_RGB,
-//                gl.GL_UNSIGNED_BYTE,
-//                mBuffer
-//            )
-            read(textures[0],textureWidth,textureHeight,3)
-//            pboWrite()
+            read(textures[0], textureWidth, textureHeight, 3)
         }
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
@@ -376,68 +283,19 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
         gl.glActiveTexture(gl.GL_TEXTURE1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
-//        gl.glTexImage2D(
-//            gl.GL_TEXTURE_2D,
-//            0,
-//            gl.GL_RGB,
-//            textureWidth,
-//            textureHeight,
-//            0,
-//            gl.GL_RGB,
-//            gl.GL_UNSIGNED_BYTE,
-//            mBuffer
-//        )
-
         gl.glUniform1i(textureHandle2D, 1)
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-        write(textures2D[0],textureWidth,textureHeight)
-//        pboWrite()
+        write(textures2D[0], textureWidth, textureHeight)
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
     }
-    val pboIds=IntArray(1)
-    fun pbo(){
-        if(pboIds[0]==0) {
-            gl.glGenBuffers(1, pboIds, 0)
-            gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
-//            gl.glBufferData(gl.GL_PIXEL_UNPACK_BUFFER, byteSize, null, gl.GL_STREAM_DRAW);
-            Log.e(TAG, "pboWrite: ", )
+
+    private fun compileShader(type: Int, file: String): Int {
+        val code = context.assets.open(file).bufferedReader().useLines {
+            it.joinToString("\n")
         }
-//        gl.glReadBuffer(gl.GL_FRONT)
-        gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, pboIds[0])
-        gl.glBufferData(gl.GL_PIXEL_UNPACK_BUFFER, byteSize, null, gl.GL_STREAM_COPY);
-        val buffer = gl.glMapBufferRange(
-            gl.GL_PIXEL_UNPACK_BUFFER, 0, byteSize, gl.GL_MAP_READ_BIT
-        ) as? ByteBuffer
-        if (buffer != null) {
-            buffer.put(mBuffer)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
-
-            gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, textureWidth, textureHeight, gl.GL_RGB, gl.GL_UNSIGNED_BYTE,null)
-            Log.e(TAG, "pboWrite: ${mBuffer[3]} ${mBuffer[4]} ${buffer[3]}", )
-        }
-        else
-            Log.e(TAG, "pboWrite: null", )
-
-        gl.glUnmapBuffer(gl.GL_PIXEL_UNPACK_BUFFER)
-//        gl.glReadPixels(
-//            0,
-//            0,
-//            textureWidth,
-//            textureHeight,
-//            gl.GL_RGBA,
-//            gl.GL_UNSIGNED_BYTE,
-//            0
-//        )
-
-//        gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, pboIds[0])
-
-        gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0);
-    }
-
-    private fun compileShader(type: Int, code: String): Int {
         val shader = gl.glCreateShader(type)
         gl.glShaderSource(shader, code)
         gl.glCompileShader(shader)
@@ -449,6 +307,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
         return shader
     }
+
     private fun createAspectFitMatrix(
         textureWidth: Float,
         textureHeight: Float,
@@ -480,14 +339,14 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private fun createExternalTexture(): Int {
         gl.glGenTextures(1, textures, 0)
         gl.glActiveTexture(gl.GL_TEXTURE0) //not needed since it is by default
-        gl.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures[0])
+        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
         gl.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+            GL_TEXTURE_EXTERNAL_OES,
             gl.GL_TEXTURE_MIN_FILTER,
             gl.GL_LINEAR
         )
         gl.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+            GL_TEXTURE_EXTERNAL_OES,
             gl.GL_TEXTURE_MAG_FILTER,
             gl.GL_LINEAR
         )

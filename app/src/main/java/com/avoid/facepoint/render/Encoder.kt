@@ -1,8 +1,7 @@
-package com.Void.gifencoder.Recorder
+package com.avoid.facepoint.render
 
 
 import android.content.Context
-import android.graphics.BitmapFactory
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -112,7 +111,7 @@ class Encoder {
         mWidth=width
         mHeight=height
 
-        mBitRate = 5000000
+        mBitRate = 8000000
         mBufferInfo = MediaCodec.BufferInfo()
 
         val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height)

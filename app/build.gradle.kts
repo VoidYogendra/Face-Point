@@ -58,10 +58,11 @@ android {
             version = "3.22.1"
         }
     }
+    buildToolsVersion = "34.0.0"
 }
 
 dependencies {
-
+    implementation(libs.material)
     implementation(libs.androidx.camera.core)
     implementation (libs.androidx.camera.camera2)
     implementation(libs.androidx.core.ktx)
@@ -74,6 +75,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.recyclerview)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
