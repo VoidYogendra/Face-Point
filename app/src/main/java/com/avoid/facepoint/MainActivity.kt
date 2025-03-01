@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                         if (isRecord) {
                             val tempt = x
                             if (!record) {
-                                // TODO: implement pass fbo and fix rotation
+                                // TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
                                 encoder.prepareEncoder(
                                     res.height ,
                                     res.width ,

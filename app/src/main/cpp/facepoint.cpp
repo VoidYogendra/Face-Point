@@ -2,6 +2,15 @@
 #include <malloc.h>
 #include "GLES3/gl31.h"
 #include <cstring>
+
+#include <android/log.h>
+
+#define  LOG_TAG    "Main"
+
+#define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
+#define  LOGW(...)  __android_log_print(ANDROID_LOG_WARN,LOG_TAG,__VA_ARGS__)
+#define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
+#define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
 // Write C++ code here.
 //
 // Do not forget to dynamically load the C++ library into your application.
@@ -35,16 +44,27 @@ Java_com_avoid_facepoint_MainActivity_00024Companion_nativeInitTest(JNIEnv *env,
 }
 GLubyte *pixelsA = nullptr;
 GLubyte *pixelsB = nullptr;
-size_t numBytes=0;
+GLsizei numBytes = 0;
+GLuint pboRead = 0;
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_avoid_facepoint_VoidRender_00024Companion_read(JNIEnv *env, jobject thiz, int width,
+Java_com_avoid_facepoint_VoidRender_00024Companion_read(JNIEnv *env, jobject thiz, int textureID,
+                                                        int width,
                                                         int height, int channel) {
     if (pixelsA == nullptr) {
-        numBytes=width * height * channel;
+        numBytes = width * height * channel;
         pixelsA = (GLubyte *) malloc(numBytes);
-        pixelsB= (GLubyte *) malloc(numBytes);
+        pixelsB = (GLubyte *) malloc(numBytes);
+        glGenBuffers(1, &pboRead);
+
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, pboRead);
+        glBufferData(GL_PIXEL_PACK_BUFFER, numBytes, nullptr,
+                     GL_STREAM_READ);
     }
+
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pboRead);
+//    glBufferData(GL_PIXEL_PACK_BUFFER, numBytes, nullptr,
+//                 GL_STREAM_READ);
     glReadPixels(
             0,
             0,
@@ -52,49 +72,89 @@ Java_com_avoid_facepoint_VoidRender_00024Companion_read(JNIEnv *env, jobject thi
             height,
             GL_RGB,
             GL_UNSIGNED_BYTE,
-            pixelsA
+//            pixelsA
+            nullptr
     );
+    auto pboMemory1 = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, numBytes, GL_MAP_READ_BIT);
+    if (pboMemory1) {
+//        pixelsA = static_cast<GLubyte *>(pboMemory1);
+        memcpy( pixelsA,pboMemory1, numBytes);
+        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+    } else
+        LOGE("FAILED");
+
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 }
-GLuint pbo = -1;
+GLuint pboWrite = -1;
+
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_avoid_facepoint_VoidRender_00024Companion_write(JNIEnv *env, jobject thiz, int textureID,int width,int height) {
-    memcpy(pixelsB,pixelsA,numBytes);
-    glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RGB,
-            width,
-            height,
-            0,
-            GL_RGB,
-            GL_UNSIGNED_BYTE,
-            pixelsB
-    );
-//    if (pbo == -1)
-//        glGenBuffers(1, &pbo);
-//    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-//    glBufferData(GL_PIXEL_UNPACK_BUFFER, numBytes, nullptr, GL_STREAM_COPY);
-//    auto* ptr = static_cast<GLubyte*>(
-//            glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, numBytes, GL_MAP_WRITE_BIT)
+Java_com_avoid_facepoint_VoidRender_00024Companion_write(JNIEnv *env, jobject thiz, int textureID,
+                                                         int width, int height) {
+//    memcpy(pixelsB,pixelsA,numBytes);
+//if(pixelsA)
+//    glTexImage2D(
+//            GL_TEXTURE_2D,
+//            0,
+//            GL_RGB,
+//            width,
+//            height,
+//            0,
+//            GL_RGB,
+//            GL_UNSIGNED_BYTE,
+//            pixelsA
 //    );
-//
-//    if (ptr) {
-//        // Optionally, inspect some values before unmapping:
-//        // std::cout << "Before unmap: " << static_cast<int>(ptr[0]) << ", " << static_cast<int>(ptr[1]) << "\n";
-//
-//        // Copy the pixel data into the mapped buffer
-//        memcpy(ptr, pixels, numBytes);
-//
-//        // Unmap the buffer once data is written.
-//        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-//    }
-//
-//    // --- Bind texture and update it from PBO ---
-//    glBindTexture(GL_TEXTURE_2D, textureID);
-//    // Passing a null pointer tells OpenGL to use the data from the PBO
-//    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, ptr);
-//
-//    // Unbind both the PBO and the texture
-//    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    if (pboWrite == -1) {
+        glGenBuffers(1, &pboWrite);
+    }
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboWrite);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, numBytes, nullptr, GL_STREAM_DRAW);
+
+    GLint align=-1;
+
+    glGetIntegerv(GL_UNPACK_ALIGNMENT,&align);
+    LOGE("C++ %d",align);
+
+    if(align!=1) {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGB,
+                width,
+                height,
+                0,
+                GL_RGB,
+                GL_UNSIGNED_BYTE,
+                nullptr
+        );
+        auto *ptr =
+                glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, numBytes, GL_MAP_WRITE_BIT);
+
+        if (ptr) {
+
+            memcpy(ptr, pixelsA, numBytes);
+            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+            LOGE("DONE");
+        }
+    }
+
+
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    auto *ptr =
+            glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, numBytes, GL_MAP_WRITE_BIT);
+
+    if (ptr) {
+
+        memcpy(ptr, pixelsA, numBytes);
+        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+        LOGE("DONE");
+    }
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        LOGE("OpenGL Error: %d", err);
+    }
+
+    // Unbind both the PBO and the texture
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }

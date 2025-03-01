@@ -25,7 +25,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private const val TAG = "VoidRender"
         private const val FLOAT_SIZE_BYTES = 4
         private const val STRIDES = 4 * FLOAT_SIZE_BYTES
-        private external fun read(width: Int,height: Int,channel:Int)
+        private external fun read(textureID:Int,width: Int,height: Int,channel:Int)
         private external fun write(textureID:Int,width: Int,height: Int)
     }
 
@@ -358,8 +358,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 //                gl.GL_UNSIGNED_BYTE,
 //                mBuffer
 //            )
-            read(textureWidth,textureHeight,3)
-//            pbo()
+            read(textures[0],textureWidth,textureHeight,3)
+//            pboWrite()
         }
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
@@ -387,11 +387,12 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 //            gl.GL_UNSIGNED_BYTE,
 //            mBuffer
 //        )
-        write(textures2D[0],textureWidth,textureHeight)
+
         gl.glUniform1i(textureHandle2D, 1)
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-//        pbo()
+        write(textures2D[0],textureWidth,textureHeight)
+//        pboWrite()
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
@@ -402,7 +403,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.glGenBuffers(1, pboIds, 0)
             gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, 0)
 //            gl.glBufferData(gl.GL_PIXEL_UNPACK_BUFFER, byteSize, null, gl.GL_STREAM_DRAW);
-            Log.e(TAG, "pbo: ", )
+            Log.e(TAG, "pboWrite: ", )
         }
 //        gl.glReadBuffer(gl.GL_FRONT)
         gl.glBindBuffer(gl.GL_PIXEL_UNPACK_BUFFER, pboIds[0])
@@ -415,10 +416,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
 
             gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, textureWidth, textureHeight, gl.GL_RGB, gl.GL_UNSIGNED_BYTE,null)
-            Log.e(TAG, "pbo: ${mBuffer[3]} ${mBuffer[4]} ${buffer[3]}", )
+            Log.e(TAG, "pboWrite: ${mBuffer[3]} ${mBuffer[4]} ${buffer[3]}", )
         }
         else
-            Log.e(TAG, "pbo: null", )
+            Log.e(TAG, "pboWrite: null", )
 
         gl.glUnmapBuffer(gl.GL_PIXEL_UNPACK_BUFFER)
 //        gl.glReadPixels(
