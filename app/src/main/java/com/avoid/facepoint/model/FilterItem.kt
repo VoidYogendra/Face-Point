@@ -1,3 +1,5 @@
 package com.avoid.facepoint.model
 
-class FilterItem (val drawable:Int,val vertex:Int,val fragment:Int,val program:Int)
+import com.avoid.facepoint.render.VoidRender
+
+class FilterItem (val drawable:Int,val filterTypes: FilterTypes,val render: VoidRender,val lutFileName:String?)

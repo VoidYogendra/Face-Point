@@ -3,6 +3,7 @@ package com.avoid.facepoint
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.DialogInterface
 import android.graphics.Color
 import android.opengl.EGL14
 import android.opengl.GLES31
@@ -11,14 +12,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import android.util.Range
 import android.view.MotionEvent
 import android.view.Surface
-import android.widget.BaseAdapter
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -27,14 +28,18 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.LinearSnapHelper
+import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.avoid.facepoint.render.Encoder
 import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
+import com.avoid.facepoint.model.FilterTypes
+import com.avoid.facepoint.render.Encoder
 import com.avoid.facepoint.render.VoidRender
-import com.avoid.facepoint.render.VsyncCallBack
 import com.avoid.facepoint.ui.ButtonAdapter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 
 class MainActivity : AppCompatActivity() {
@@ -82,27 +87,118 @@ class MainActivity : AppCompatActivity() {
         glSurface.setRenderer(renderer)
 
 
-        val dataSet= arrayOf(
-            FilterItem(R.drawable.ic_launcher_background,0,0,0),
-            FilterItem(R.drawable.ic_launcher_foreground,1,0,0),
-            FilterItem(R.drawable.ic_launcher_background,2,0,0),
-            FilterItem(R.drawable.ic_launcher_background,3,0,0),
-            FilterItem(R.drawable.ic_launcher_background,4,0,0),
-            FilterItem(R.drawable.ic_launcher_background,5,0,0),
-            FilterItem(R.drawable.ic_launcher_background,6,0,0),
-            FilterItem(R.drawable.ic_launcher_background,7,0,0),
-            FilterItem(R.drawable.ic_launcher_background,8,0,0),
+        val dataSet = arrayOf(
+            FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEFAULT, renderer, null),
+//            FilterItem(R.drawable.ic_launcher_background, FilterTypes.GRAIN, renderer, null),
+            FilterItem(
+                R.drawable.ic_launcher_background,
+                FilterTypes.LUT,
+                renderer,
+                "lut/b&w.cube"
+            ),
+            FilterItem(
+                R.drawable.ic_launcher_background,
+                FilterTypes.LUT,
+                renderer,
+                "lut/CineStill.cube"
+            ),
+            FilterItem(
+                R.drawable.ic_launcher_background,
+                FilterTypes.LUT,
+                renderer,
+                "lut/Sunset.cube"
+            ),
+            FilterItem(
+                R.drawable.ic_launcher_background,
+                FilterTypes.LUT,
+                renderer,
+                "lut/Sunset2.cube"
+            ),
+            FilterItem(
+                R.drawable.ic_launcher_background,
+                FilterTypes.LUT,
+                renderer,
+                "lut/BW1.cube"
+            ),
         )
-        val adapter=ButtonAdapter(dataSet)
+        val adapter = ButtonAdapter(dataSet)
 
-        val recyclerView=mainActivityBinding.RvFilterList
-        val linearLayout=LinearLayoutManager(context)
-        val snap=LinearSnapHelper()
+        val recyclerView = mainActivityBinding.RvFilterList
+        val linearLayout = LinearLayoutManager(context)
+        val snap = PagerSnapHelper()
 
-        linearLayout.orientation= RecyclerView.HORIZONTAL
-        recyclerView.layoutManager=linearLayout
+        linearLayout.orientation = RecyclerView.HORIZONTAL
+        recyclerView.layoutManager = linearLayout
+        recyclerView.adapter = adapter
         snap.attachToRecyclerView(recyclerView)
-        recyclerView.adapter=adapter
+        var item = 0
+        val linearLayoutManager = recyclerView.layoutManager!! as LinearLayoutManager
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+                val visibleItemCount: Int = linearLayoutManager.childCount
+                val firstVisibleItemPosition: Int =
+                    linearLayoutManager.findFirstVisibleItemPosition()
+                val lastItem = firstVisibleItemPosition + visibleItemCount
+                if (lastItem != item) {
+                    Log.e(TAG, "onScrolled: $lastItem")
+                    val filter = adapter.dataSet[lastItem - 1]
+                    val render = filter.render
+                    render.onDrawCallback = {
+                        render.filterTypes = filter.filterTypes
+                        val extensions = GLES31.glGetString(GLES31.GL_EXTENSIONS)
+                        Log.e(TAG, "extensions: $extensions", )
+                        if (!extensions.contains("GL_OES_EGL_image_external")) {
+                            runOnUiThread {
+                                Toast.makeText(context,"GL_OES_EGL_image_external NOT SUPPORTED",Toast.LENGTH_SHORT).show()
+                            }
+                            Log.e("GL ERROR", "GL_OES_EGL_image_external NOT SUPPORTED")
+                        }
+                        when (filter.filterTypes) {
+                            FilterTypes.DEFAULT -> {
+                                render.deleteCurrentProgram()
+
+                                render.createExternalTexture()
+                                render.resize(render.cameraWidth, render.cameraHeight)
+                            }
+
+                            FilterTypes.LUT -> {
+                                var isFailed=false
+//
+//                                if (!extensions.contains("GL_OES_texture_3D")) {
+//                                    runOnUiThread {
+//                                        AlertDialog.Builder(context).setPositiveButton("OK"
+//                                        ) { dialogInterface, _ ->
+//                                            dialogInterface.cancel()
+//                                        }.setMessage("YOUR DEVICE CURRENTLY DOES NOT " +
+//                                                "SUPPORT FILTERS \nSTAY TUNED").setTitle("SORRY").show()
+//                                    }
+//                                    Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
+//                                    isFailed=true
+//                                    render.filterTypes=FilterTypes.DEFAULT
+//                                }
+                                if (!isFailed){
+                                    render.deleteCurrentProgram()
+
+                                    render.loadLUT(filter.lutFileName!!)
+                                    render.createExternalTextureLUT()
+                                    render.resize(render.cameraWidth, render.cameraHeight)
+                                }
+                            }
+                            FilterTypes.GRAIN->{
+                                render.deleteCurrentProgram()
+
+                                render.createExternalTextureGRAIN()
+                                render.resize(render.cameraWidth, render.cameraHeight)
+                            }
+                        }
+                    }
+
+                    item = lastItem
+                }
+            }
+        })
+
 
 
         mainActivityBinding.BtnRec.setOnTouchListener { view, motionEvent ->
@@ -135,6 +231,7 @@ class MainActivity : AppCompatActivity() {
 
             val preview = Preview.Builder()
                 .setResolutionSelector(resolutionSelector)
+                .setTargetFrameRate(Range(30, 60))
                 .build()
 
 
@@ -146,44 +243,52 @@ class MainActivity : AppCompatActivity() {
 
                 val encoder = Encoder()
                 var record = false
-                var x = 0
+
                 /**
                  * My FBO Approach Does not Work But this might
                  * */
 // TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
 
-                val frameCallback = VsyncCallBack { frameTimeNanos ->
-                    if (isRecord) {
-                        if (!record) {
-                            encoder.prepareEncoder(res.height, res.width, EGL14.EGL_NO_CONTEXT)
-                            handler.post {
-                                encoder.mInputSurface!!.makeCurrent()
-                                renderer.onSurfaceCreated2D()
-                                renderer.onSurfaceChanged(res.height, res.width)
-                            }
-                            record = true
-                        } else {
-                            encoder.drainEncoder(false)
-                            handler.post {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val fps=30
+                    val frameInterval = 1000L / fps   // 33ms for ~30FPS
+                    Log.e(TAG, "startCamera: Interval $frameInterval", )
+                    while (true) {
+                        val frameTimeNanos = System.nanoTime()
+
+                        if (isRecord) {
+                            if (!record) {
+                                encoder.prepareEncoder(fps, res.height, res.width, EGL14.EGL_NO_CONTEXT)
+                                handler.post {
+                                    encoder.mInputSurface!!.makeCurrent()
+                                    renderer.onSurfaceCreated2D()
+                                    renderer.onSurfaceChanged(res.height, res.width)
+                                }
+                                record = true
+                            } else {
+                                encoder.drainEncoder(false)
+                                handler.post {
 //                                Log.e(TAG, "startCamera:x ${GLES31.glIsTexture(renderer.textureID2D)} ID ${renderer.textureID2D}", )
-                                renderer.onDraw()
-                                encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
-                                encoder.mInputSurface!!.swapBuffers()
+                                    if(record){
+                                        renderer.onDraw()
+                                        encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
+                                        encoder.mInputSurface!!.swapBuffers()
+                                    }
+
+                                }
                             }
                         }
-                        x++
-                    }
 
-                    if (!isRecord && record) {
-                        record = false
-                        encoder.drainEncoder(true)
-                        encoder.releaseEncoder()
-                        Log.e(TAG, "startCamera: DONE")
+                        if (!isRecord && record) {
+                            record = false
+                            encoder.drainEncoder(true)
+                            encoder.releaseEncoder()
+                            Log.e(TAG, "startCamera: DONE")
+                        }
+                        delay(frameInterval) // Wait for the next frame (instead of busy looping)
                     }
                 }
 
-// Start listening for frame updates
-                frameCallback.start()
 
                 renderer.resize(res.width, res.height)
                 Log.e(TAG, "startCamera: ${preview.resolutionInfo!!.resolution}")
@@ -218,15 +323,17 @@ class MainActivity : AppCompatActivity() {
         launcher.launch(permission)
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        destroy()
+    }
+
     companion object {
-        private external fun nativeInit()
-        private external fun nativeInitTest(wow: String): String
         internal const val TAG = "MainActivity"
+        private external fun destroy()
 
         init {
             System.loadLibrary("facepoint")
-            nativeInit()
-            Log.e(TAG, ":XYZ ${nativeInitTest("OYYYY")}")
         }
     }
 }

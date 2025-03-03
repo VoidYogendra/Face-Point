@@ -28,10 +28,10 @@ class Encoder {
     private var mHeight = -1
 
 
-    private var mBitRate = -1
+//    private var mBitRate = -1
 
 
-    private var mEncoder: MediaCodec? = null
+    var mEncoder: MediaCodec? = null
     var mInputSurface: CodecInputSurface? = null
     private var mMuxer: MediaMuxer? = null
     private var mTrackIndex = 0
@@ -43,14 +43,12 @@ class Encoder {
     private val handler= Handler(handlerThread.looper)
 
     fun testEncodeVideoToMp4(context: Context) {
-        mBitRate = 2000000
-
         try {
 //            val bit = BitmapFactory.decodeStream(context.assets.open("frames/frame_0.jpg"))
 //            mWidth=bit.width
 //            mHeight=bit.height
 
-            prepareEncoder(1200,1600,EGL14.EGL_NO_CONTEXT)
+            prepareEncoder(30,1200,1600,EGL14.EGL_NO_CONTEXT)
             handler.post {
                 mInputSurface!!.makeCurrent()
             }
@@ -107,11 +105,11 @@ class Encoder {
     }
 
 
-    fun prepareEncoder(width: Int, height: Int,eglContext: EGLContext) {
+    fun prepareEncoder(frameRate:Int, width: Int, height: Int, eglContext: EGLContext) {
         mWidth=width
         mHeight=height
 
-        mBitRate = 8000000
+        val bitrate =(BPP * frameRate * width * height).toInt()
         mBufferInfo = MediaCodec.BufferInfo()
 
         val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height)
@@ -121,8 +119,8 @@ class Encoder {
             MediaFormat.KEY_COLOR_FORMAT,
             MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
         )
-        format.setInteger(MediaFormat.KEY_BIT_RATE, mBitRate)
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE)
+        format.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL)
         if (VERBOSE) Log.d(
             TAG,
@@ -156,14 +154,14 @@ class Encoder {
 
     fun releaseEncoder() {
         if (VERBOSE) Log.d(TAG, "releasing encoder objects")
+        if (mInputSurface != null) {
+            mInputSurface!!.release()
+            mInputSurface = null
+        }
         if (mEncoder != null) {
             mEncoder!!.stop()
             mEncoder!!.release()
             mEncoder = null
-        }
-        if (mInputSurface != null) {
-            mInputSurface!!.release()
-            mInputSurface = null
         }
         if (mMuxer != null) {
             mMuxer!!.stop()
@@ -444,9 +442,10 @@ class Encoder {
 
 
         private const val MIME_TYPE = "video/avc"
-        private const val FRAME_RATE = 3
-        private const val IFRAME_INTERVAL = 10
+        private var FRAME_RATE = 3
+        private const val IFRAME_INTERVAL = 3
         private const val NUM_FRAMES = 30
+        private const val BPP = 0.25f
 
 
         private const val TEST_R0 = 0

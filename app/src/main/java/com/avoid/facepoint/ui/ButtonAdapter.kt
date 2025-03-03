@@ -1,5 +1,6 @@
 package com.avoid.facepoint.ui
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -26,5 +27,7 @@ class ButtonAdapter(val dataSet: Array<FilterItem>) : RecyclerView.Adapter<Butto
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         holder.image.setImageResource(dataSet[position].drawable)
+        Log.e("onBindViewHolder", "getItemViewType: $position", )
     }
+
 }
