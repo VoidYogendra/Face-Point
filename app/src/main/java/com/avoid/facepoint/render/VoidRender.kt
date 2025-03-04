@@ -192,29 +192,43 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         this.textureWidth = width
         this.textureHeight = height
         byteSize = textureWidth * textureHeight * 3
-        mBuffer = ByteBuffer.allocateDirect(byteSize).order(ByteOrder.nativeOrder())
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
-        Matrix.rotateM(scaleMatrix, 0, 180f, 0f, 0f, 1f);
         aspectMatrix2D = scaleMatrix
-//        gl.glBindVertexArray(vao2D[0])
+        Matrix.setRotateM(aspectMatrix2D, 0, 180f , 0f, 0f, 1.0f)
+        Matrix.scaleM(aspectMatrix2D, 0, -1.0f, 1.0f, 1.0f)
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
 
-    lateinit var mBuffer: ByteBuffer
-    var byteSize = 0
+    private var byteSize = 0
     fun resize(textureWidth: Int, textureHeight: Int) {
         cameraWidth = textureWidth
         cameraHeight = textureHeight
         surfaceTexture?.setDefaultBufferSize(textureWidth, textureHeight)
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
-//        val ration=textureWidth.toFloat()/textureHeight.toFloat()
-//        val screeRation=this.width.toFloat()/this.height.toFloat()
-//        Matrix.scaleM(scaleMatrix, 0, screeRation, screeRation, 1.0f)
         aspectMatrix = scaleMatrix
-//        gl.glBindVertexArray(vao[0])
+        Matrix.scaleM(aspectMatrix, 0, 1.0f, -1.0f, 1.0f)
+        Matrix.setRotateM(aspectMatrix, 0, 0f , 0f, 0f, 1.0f)
         gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+    }
+
+    fun rotate(flip:Boolean){
+        onDrawCallback={
+
+            if(flip)
+            {
+                Matrix.scaleM(aspectMatrix, 0, 1.0f, -1.0f, 1.0f)
+                Matrix.setRotateM(aspectMatrix, 0, 0f , 0f, 0f, 1.0f)
+            }
+            else
+            {
+                Matrix.setRotateM(aspectMatrix, 0, 180f , 0f, 0f, 1.0f)
+                Matrix.scaleM(aspectMatrix, 0, -1.0f, 1.0f, 1.0f)
+            }
+
+            gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+        }
 
     }
 
@@ -231,7 +245,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         gl.glBindVertexArray(vao[0])
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo[0])
-        gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+//        gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
 
         when (filterTypes) {
             FilterTypes.DEFAULT -> {
@@ -262,7 +276,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         gl.glBindVertexArray(vao2D[0])
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo2D[0])
-        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
+//        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
         gl.glActiveTexture(gl.GL_TEXTURE1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
         gl.glUniform1i(textureHandle2D, 1)

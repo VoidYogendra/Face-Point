@@ -33,4 +33,17 @@
         android:scaleType="fitCenter"
         android:src="@drawable/baseline_radio_button_checked_24"
         app:tint="@color/white" />
+    <ImageButton
+        android:id="@+id/Btn_switchCamera"
+        android:layout_alignParentBottom="true"
+        android:layout_alignTop="@id/Btn_Rec"
+        android:layout_marginEnd="50dp"
+        android:layout_alignParentEnd="true"
+        android:filterTouchesWhenObscured="true"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/app_name"
+        android:scaleType="fitCenter"
+        android:src="@drawable/baseline_cameraswitch_24" />
 </RelativeLayout>

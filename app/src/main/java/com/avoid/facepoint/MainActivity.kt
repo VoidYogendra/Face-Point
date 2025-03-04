@@ -48,6 +48,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var context: Context
     private lateinit var mainActivityBinding: MainActivityBinding
     private var isRecord = false
+    private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+    private var rotation=0
     private val requestCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -222,15 +224,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
+        var cameraProvider = cameraProviderFuture.get()
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+
             val resolutionSelector = ResolutionSelector.Builder()
                 .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY) // Prefer 16:9, but fallback if needed
                 .build()
 
             val preview = Preview.Builder()
                 .setResolutionSelector(resolutionSelector)
+                .setTargetRotation(rotation)
                 .setTargetFrameRate(Range(30, 60))
                 .build()
 
@@ -239,57 +242,6 @@ class MainActivity : AppCompatActivity() {
                 val surfaceTexture = renderer.getSurfaceTexture()
                 val surface = Surface(surfaceTexture)
                 val res = preview.resolutionInfo!!.resolution
-
-
-                val encoder = Encoder()
-                var record = false
-
-                /**
-                 * My FBO Approach Does not Work But this might
-                 * */
-// TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
-
-                CoroutineScope(Dispatchers.IO).launch {
-                    val fps=30
-                    val frameInterval = 1000L / fps   // 33ms for ~30FPS
-                    Log.e(TAG, "startCamera: Interval $frameInterval", )
-                    while (true) {
-                        val frameTimeNanos = System.nanoTime()
-
-                        if (isRecord) {
-                            if (!record) {
-                                encoder.prepareEncoder(fps, res.height, res.width, EGL14.EGL_NO_CONTEXT)
-                                handler.post {
-                                    encoder.mInputSurface!!.makeCurrent()
-                                    renderer.onSurfaceCreated2D()
-                                    renderer.onSurfaceChanged(res.height, res.width)
-                                }
-                                record = true
-                            } else {
-                                encoder.drainEncoder(false)
-                                handler.post {
-//                                Log.e(TAG, "startCamera:x ${GLES31.glIsTexture(renderer.textureID2D)} ID ${renderer.textureID2D}", )
-                                    if(record){
-                                        renderer.onDraw()
-                                        encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
-                                        encoder.mInputSurface!!.swapBuffers()
-                                    }
-
-                                }
-                            }
-                        }
-
-                        if (!isRecord && record) {
-                            record = false
-                            encoder.drainEncoder(true)
-                            encoder.releaseEncoder()
-                            Log.e(TAG, "startCamera: DONE")
-                        }
-                        delay(frameInterval) // Wait for the next frame (instead of busy looping)
-                    }
-                }
-
-
                 renderer.resize(res.width, res.height)
                 Log.e(TAG, "startCamera: ${preview.resolutionInfo!!.resolution}")
                 request.provideSurface(surface, ContextCompat.getMainExecutor(this)) { _ ->
@@ -298,11 +250,71 @@ class MainActivity : AppCompatActivity() {
             }
             preview.surfaceProvider = surfaceProvider
 
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+            mainActivityBinding.BtnSwitchCamera.setOnClickListener {
+                cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                    renderer.rotate(true)
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    renderer.rotate(false)
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
+
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+            }
         }, ContextCompat.getMainExecutor(this))
+
+
+        val encoder = Encoder()
+        var record = false
+
+        /**
+         * My FBO Approach Does not Work But this might
+         * */
+// TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val fps=30
+            val frameInterval = 1000L / fps   // 33ms for ~30FPS
+            Log.e(TAG, "startCamera: Interval $frameInterval", )
+            while (true) {
+                val frameTimeNanos = System.nanoTime()
+
+                if (isRecord) {
+                    if (!record) {
+                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, EGL14.EGL_NO_CONTEXT)
+                        handler.post {
+                            encoder.mInputSurface!!.makeCurrent()
+                            renderer.onSurfaceCreated2D()
+                            renderer.onSurfaceChanged(renderer.cameraHeight, renderer.cameraWidth)
+                        }
+                        record = true
+                    } else {
+                        encoder.drainEncoder(false)
+                        handler.post {
+//                                Log.e(TAG, "startCamera:x ${GLES31.glIsTexture(renderer.textureID2D)} ID ${renderer.textureID2D}", )
+                            if(record){
+                                renderer.onDraw()
+                                encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
+                                encoder.mInputSurface!!.swapBuffers()
+                            }
+
+                        }
+                    }
+                }
+
+                if (!isRecord && record) {
+                    record = false
+                    encoder.drainEncoder(true)
+                    encoder.releaseEncoder()
+                    Log.e(TAG, "startCamera: DONE")
+                }
+                delay(frameInterval) // Wait for the next frame (instead of busy looping)
+            }
+        }
 
     }
 
