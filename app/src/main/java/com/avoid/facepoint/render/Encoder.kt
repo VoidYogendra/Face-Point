@@ -12,7 +12,7 @@ import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLExt
 import android.opengl.EGLSurface
-import android.opengl.GLES20
+import android.opengl.GLES31
 import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
@@ -48,7 +48,7 @@ class Encoder {
 //            mWidth=bit.width
 //            mHeight=bit.height
 
-            prepareEncoder(30,1200,1600,EGL14.EGL_NO_CONTEXT)
+            prepareEncoder(30,1200,1600,EGL14.EGL_NO_CONTEXT,3)
             handler.post {
                 mInputSurface!!.makeCurrent()
             }
@@ -105,7 +105,7 @@ class Encoder {
     }
 
 
-    fun prepareEncoder(frameRate:Int, width: Int, height: Int, eglContext: EGLContext) {
+    fun prepareEncoder(frameRate:Int, width: Int, height: Int, eglContext: EGLContext,glVersion:Int) {
         mWidth=width
         mHeight=height
 
@@ -130,7 +130,7 @@ class Encoder {
 
         mEncoder = MediaCodec.createEncoderByType(MIME_TYPE)
         mEncoder!!.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        mInputSurface = CodecInputSurface(mEncoder!!.createInputSurface(), eglContext)
+        mInputSurface = CodecInputSurface(mEncoder!!.createInputSurface(), eglContext,glVersion)
         mEncoder!!.start()
 
 
@@ -273,14 +273,14 @@ class Encoder {
             startY = 0
         }
 
-        GLES20.glClearColor(TEST_R0 / 255.0f, TEST_G0 / 255.0f, TEST_B0 / 255.0f, 1.0f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        GLES31.glClearColor(TEST_R0 / 255.0f, TEST_G0 / 255.0f, TEST_B0 / 255.0f, 1.0f)
+        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT)
 
-        GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
-        GLES20.glScissor(startX, startY, mWidth / 4, mHeight / 2)
-        GLES20.glClearColor(TEST_R1 / 255.0f, TEST_G1 / 255.0f, TEST_B1 / 255.0f, 1.0f)
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-        GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+        GLES31.glEnable(GLES31.GL_SCISSOR_TEST)
+        GLES31.glScissor(startX, startY, mWidth / 4, mHeight / 2)
+        GLES31.glClearColor(TEST_R1 / 255.0f, TEST_G1 / 255.0f, TEST_B1 / 255.0f, 1.0f)
+        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT)
+        GLES31.glDisable(GLES31.GL_SCISSOR_TEST)
     }
 
 
@@ -295,7 +295,7 @@ class Encoder {
      *
      * This object owns the Surface -- releasing this will release the Surface too.
      */
-    class CodecInputSurface(surface: Surface?,val eglContext: EGLContext) {
+    class CodecInputSurface(surface: Surface?,val eglContext: EGLContext,val glVersion:Int) {
         private var mEGLDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
         private var mEGLContext: EGLContext = EGL14.EGL_NO_CONTEXT
         private var mEGLSurface: EGLSurface = EGL14.EGL_NO_SURFACE
@@ -347,7 +347,7 @@ class Encoder {
 
             // Configure context for OpenGL ES 2.0.
             val attrib_list = intArrayOf(
-                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+                EGL14.EGL_CONTEXT_CLIENT_VERSION, glVersion,
                 EGL14.EGL_NONE
             )
             mEGLContext = EGL14.eglCreateContext(

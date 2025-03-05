@@ -55,7 +55,7 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_read(JNIEnv *env, jobj
                 0,
                 width,
                 height,
-                GL_RGB,
+                GL_RGBA,
                 GL_UNSIGNED_BYTE,
 //            pixelsA
                 nullptr
@@ -94,18 +94,18 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_write(JNIEnv *env, job
             glTexImage2D(
                     GL_TEXTURE_2D,
                     0,
-                    GL_RGB,
+                    GL_RGBA,
                     width,
                     height,
                     0,
-                    GL_RGB,
+                    GL_RGBA,
                     GL_UNSIGNED_BYTE,
                     nullptr
             );
         }
 
 
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         auto *ptr =
                 glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, numBytes, GL_MAP_WRITE_BIT);
 

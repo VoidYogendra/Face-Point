@@ -8,7 +8,6 @@ import android.opengl.EGLContext
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
-import androidx.appcompat.app.AlertDialog
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
 import java.nio.ByteBuffer
@@ -48,7 +47,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     var cameraWidth = 0
     var cameraHeight = 0
     var onDrawCallback: (() -> Unit?)? = null
-    private var eglContext: EGLContext? = null
+    var eglContext: EGLContext? = null
         private set
 
 
@@ -264,7 +263,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
         if (byteSize > 0) {
-            read(textureWidth, textureHeight, 3)
+            read(textureWidth, textureHeight, 4)
         }
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)

@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
     private fun init() {
         context = this
         glSurface = mainActivityBinding.GLSMainRender
-        glSurface.setEGLContextClientVersion(3)
+        glSurface.setEGLContextClientVersion(GL_VERSION)
 
         renderer = VoidRender(context)
         glSurface.setRenderer(renderer)
@@ -277,7 +277,7 @@ class MainActivity : AppCompatActivity() {
 // TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
 
         CoroutineScope(Dispatchers.IO).launch {
-            val fps=30
+            val fps=60
             val frameInterval = 1000L / fps   // 33ms for ~30FPS
             Log.e(TAG, "startCamera: Interval $frameInterval", )
             while (true) {
@@ -285,7 +285,10 @@ class MainActivity : AppCompatActivity() {
 
                 if (isRecord) {
                     if (!record) {
-                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, EGL14.EGL_NO_CONTEXT)
+                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, EGL14.EGL_NO_CONTEXT,
+                            GL_VERSION)
+//                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
+//                            GL_VERSION)
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
                             renderer.onSurfaceCreated2D()
@@ -343,6 +346,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         internal const val TAG = "MainActivity"
         private external fun destroy()
+        const val GL_VERSION=3
 
         init {
             System.loadLibrary("facepoint")
