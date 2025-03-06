@@ -1,3 +1,13 @@
+/**
+ *                    texture id              type                                                program  fbo          context
+ * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable A                  3 FBO   1    CONTEXT 7704a200
+ * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable GlPreview RECORD   6 FBO   1    CONTEXT 7704a200
+ * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable B                  6 FBO   0    CONTEXT 7704a200
+ * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable GlPreview RECORD   9 FBO   0    CONTEXT d30afa80
+ * TEXTURE OF C++ FBO    2  TYPE:GL_TEXTURE_BINDING_2D PROGRAM enable GlFilter                     3 FBO   0    CONTEXT 7704a200
+ * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable C                  3 FBO   0    CONTEXT 7704a200
+ * **/
+
 package com.avoid.facepoint.render
 
 import android.content.Context
@@ -13,6 +23,8 @@ import com.avoid.facepoint.model.ShaderType
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import java.util.LinkedList
+import java.util.Queue
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLES31 as gl
@@ -46,7 +58,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     var cameraWidth = 0
     var cameraHeight = 0
-    var onDrawCallback: (() -> Unit?)? = null
+    var onDrawCallback: Queue<Runnable> = LinkedList()
     var eglContext: EGLContext? = null
         private set
 
@@ -107,7 +119,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     var aspectMatrix = FloatArray(16)
     var aspectMatrix2D = FloatArray(16)
 
-    fun onSurfaceCreated2D() {
+    fun onSurfaceCreated2D(width: Int,height: Int) {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
         fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
         program2D = gl.glCreateProgram()
@@ -166,7 +178,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
 
-        textureID2D = createTexture()
+//        textureID2D = createTexture()
+        textureID2D = createRenderTexture(width,height)
     }
 
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
@@ -203,6 +216,12 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     fun resize(textureWidth: Int, textureHeight: Int) {
         cameraWidth = textureWidth
         cameraHeight = textureHeight
+//        onDrawCallback.add{
+//            if (byteSize>0) {
+//                onSurfaceCreated2D(textureWidth, textureHeight)
+//                onSurfaceChanged(textureWidth,textureHeight)
+//            }
+//        }
         surfaceTexture?.setDefaultBufferSize(textureWidth, textureHeight)
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
@@ -213,8 +232,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     }
 
     fun rotate(flip:Boolean){
-        onDrawCallback={
-
+        onDrawCallback.add{
             if(flip)
             {
                 Matrix.scaleM(aspectMatrix, 0, 1.0f, -1.0f, 1.0f)
@@ -225,7 +243,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 Matrix.setRotateM(aspectMatrix, 0, 180f , 0f, 0f, 1.0f)
                 Matrix.scaleM(aspectMatrix, 0, -1.0f, 1.0f, 1.0f)
             }
-
             gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
         }
 
@@ -233,18 +250,16 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     override fun onDrawFrame(p0: GL10?) {
         //so it does not render during new setup
-        if (onDrawCallback != null || textures[0] == 0) {
-            onDrawCallback!!()
-            onDrawCallback = null
-            return
+        synchronized(onDrawCallback) {
+            while (onDrawCallback.isNotEmpty()) {
+                onDrawCallback.poll()?.run()
+            }
         }
-
 
         gl.glClear(gl.GL_COLOR_BUFFER_BIT or gl.GL_DEPTH_BUFFER_BIT)
 
         gl.glBindVertexArray(vao[0])
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo[0])
-//        gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
 
         when (filterTypes) {
             FilterTypes.DEFAULT -> {
@@ -555,6 +570,65 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.GL_TEXTURE_MAG_FILTER,
             gl.GL_LINEAR
         )
+        return textures2D[0]
+    }
+    var framebufferName=0
+    private fun createRenderTexture(width: Int,height: Int): Int {
+        val args=IntArray(1)
+
+        gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING, args, 0)
+        val saveFramebuffer = args[0]
+        gl.glGetIntegerv(gl.GL_RENDERBUFFER_BINDING, args, 0)
+        val saveRenderbuffer = args[0]
+        gl.glGetIntegerv(gl.GL_TEXTURE_BINDING_2D, args, 0)
+        val saveTexName = args[0]
+        
+        gl.glGenFramebuffers(args.size, args, 0)
+        framebufferName = args[0]
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+
+        gl.glGenTextures(1, textures2D, 0)
+        gl.glActiveTexture(gl.GL_TEXTURE1) //not needed since it is by default
+        gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
+        gl.glTexParameteri(
+            gl.GL_TEXTURE_2D,
+            gl.GL_TEXTURE_MIN_FILTER,
+            gl.GL_LINEAR
+        )
+        gl.glTexParameteri(
+            gl.GL_TEXTURE_2D,
+            gl.GL_TEXTURE_MAG_FILTER,
+            gl.GL_LINEAR
+        )
+
+        gl.glTexImage2D(
+            gl.GL_TEXTURE_2D,
+            0,
+            gl.GL_RGBA,
+            width,
+            height,
+            0,
+            gl.GL_RGBA,
+            gl.GL_UNSIGNED_BYTE,
+            null
+        )
+        gl.glFramebufferTexture2D(
+            gl.GL_FRAMEBUFFER,
+            gl.GL_COLOR_ATTACHMENT0,
+            gl.GL_TEXTURE_2D,
+            textures2D[0],
+            0
+        )
+
+        val status = gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER)
+        if (status != gl.GL_FRAMEBUFFER_COMPLETE) {
+            throw java.lang.RuntimeException("Failed to initialize framebuffer object $status")
+        }
+
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, saveFramebuffer)
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, saveRenderbuffer)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, saveTexName)
+        
         return textures2D[0]
     }
 

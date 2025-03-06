@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mainActivityBinding: MainActivityBinding
     private var isRecord = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-    private var rotation=0
+    private var rotation = 0
     private val requestCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -91,7 +91,7 @@ class MainActivity : AppCompatActivity() {
 
         val dataSet = arrayOf(
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEFAULT, renderer, null),
-//            FilterItem(R.drawable.ic_launcher_background, FilterTypes.GRAIN, renderer, null),
+            FilterItem(R.drawable.ic_launcher_background, FilterTypes.GRAIN, renderer, null),
             FilterItem(
                 R.drawable.ic_launcher_background,
                 FilterTypes.LUT,
@@ -146,16 +146,9 @@ class MainActivity : AppCompatActivity() {
                     Log.e(TAG, "onScrolled: $lastItem")
                     val filter = adapter.dataSet[lastItem - 1]
                     val render = filter.render
-                    render.onDrawCallback = {
+                    render.onDrawCallback.add {
                         render.filterTypes = filter.filterTypes
-                        val extensions = GLES31.glGetString(GLES31.GL_EXTENSIONS)
-                        Log.e(TAG, "extensions: $extensions", )
-                        if (!extensions.contains("GL_OES_EGL_image_external")) {
-                            runOnUiThread {
-                                Toast.makeText(context,"GL_OES_EGL_image_external NOT SUPPORTED",Toast.LENGTH_SHORT).show()
-                            }
-                            Log.e("GL ERROR", "GL_OES_EGL_image_external NOT SUPPORTED")
-                        }
+
                         when (filter.filterTypes) {
                             FilterTypes.DEFAULT -> {
                                 render.deleteCurrentProgram()
@@ -165,29 +158,15 @@ class MainActivity : AppCompatActivity() {
                             }
 
                             FilterTypes.LUT -> {
-                                var isFailed=false
-//
-//                                if (!extensions.contains("GL_OES_texture_3D")) {
-//                                    runOnUiThread {
-//                                        AlertDialog.Builder(context).setPositiveButton("OK"
-//                                        ) { dialogInterface, _ ->
-//                                            dialogInterface.cancel()
-//                                        }.setMessage("YOUR DEVICE CURRENTLY DOES NOT " +
-//                                                "SUPPORT FILTERS \nSTAY TUNED").setTitle("SORRY").show()
-//                                    }
-//                                    Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
-//                                    isFailed=true
-//                                    render.filterTypes=FilterTypes.DEFAULT
-//                                }
-                                if (!isFailed){
-                                    render.deleteCurrentProgram()
 
-                                    render.loadLUT(filter.lutFileName!!)
-                                    render.createExternalTextureLUT()
-                                    render.resize(render.cameraWidth, render.cameraHeight)
-                                }
+                                render.deleteCurrentProgram()
+
+                                render.loadLUT(filter.lutFileName!!)
+                                render.createExternalTextureLUT()
+                                render.resize(render.cameraWidth, render.cameraHeight)
                             }
-                            FilterTypes.GRAIN->{
+
+                            FilterTypes.GRAIN -> {
                                 render.deleteCurrentProgram()
 
                                 render.createExternalTextureGRAIN()
@@ -277,21 +256,23 @@ class MainActivity : AppCompatActivity() {
 // TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
 
         CoroutineScope(Dispatchers.IO).launch {
-            val fps=60
+            val fps = 60
             val frameInterval = 1000L / fps   // 33ms for ~30FPS
-            Log.e(TAG, "startCamera: Interval $frameInterval", )
+            Log.e(TAG, "startCamera: Interval $frameInterval")
             while (true) {
                 val frameTimeNanos = System.nanoTime()
 
                 if (isRecord) {
                     if (!record) {
-                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, EGL14.EGL_NO_CONTEXT,
-                            GL_VERSION)
+                        encoder.prepareEncoder(
+                            fps, renderer.cameraHeight, renderer.cameraWidth, EGL14.EGL_NO_CONTEXT,
+                            GL_VERSION
+                        )
 //                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
 //                            GL_VERSION)
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
-                            renderer.onSurfaceCreated2D()
+                            renderer.onSurfaceCreated2D(renderer.cameraHeight, renderer.cameraWidth)
                             renderer.onSurfaceChanged(renderer.cameraHeight, renderer.cameraWidth)
                         }
                         record = true
@@ -299,7 +280,7 @@ class MainActivity : AppCompatActivity() {
                         encoder.drainEncoder(false)
                         handler.post {
 //                                Log.e(TAG, "startCamera:x ${GLES31.glIsTexture(renderer.textureID2D)} ID ${renderer.textureID2D}", )
-                            if(record){
+                            if (record) {
                                 renderer.onDraw()
                                 encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
                                 encoder.mInputSurface!!.swapBuffers()
@@ -346,7 +327,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         internal const val TAG = "MainActivity"
         private external fun destroy()
-        const val GL_VERSION=3
+        const val GL_VERSION = 3
 
         init {
             System.loadLibrary("facepoint")
