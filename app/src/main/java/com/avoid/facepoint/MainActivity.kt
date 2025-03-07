@@ -40,6 +40,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.CountDownLatch
 
 
 class MainActivity : AppCompatActivity() {
@@ -173,6 +174,11 @@ class MainActivity : AppCompatActivity() {
                                 render.resize(render.cameraWidth, render.cameraHeight)
                             }
                         }
+                        if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                            render.rotate(false)
+                        } else {
+                            render.rotate(true)
+                        }
                     }
 
                     item = lastItem
@@ -259,42 +265,52 @@ class MainActivity : AppCompatActivity() {
             val fps = 60
             val frameInterval = 1000L / fps   // 33ms for ~30FPS
             Log.e(TAG, "startCamera: Interval $frameInterval")
+            val videoRender = VoidRender(context)
             while (true) {
                 val frameTimeNanos = System.nanoTime()
-
                 if (isRecord) {
                     if (!record) {
                         encoder.prepareEncoder(
-                            fps, renderer.cameraHeight, renderer.cameraWidth, EGL14.EGL_NO_CONTEXT,
+                            fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
                             GL_VERSION
                         )
-//                        encoder.prepareEncoder(fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
-//                            GL_VERSION)
+                        glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
-                            renderer.onSurfaceCreated2D(renderer.cameraHeight, renderer.cameraWidth)
-                            renderer.onSurfaceChanged(renderer.cameraHeight, renderer.cameraWidth)
+                            videoRender.onSurfaceCreated2D()
+                            videoRender.onSurfaceChanged(
+                                renderer.cameraHeight,
+                                renderer.cameraWidth
+                            )
                         }
                         record = true
                     } else {
-                        encoder.drainEncoder(false)
-                        handler.post {
-//                                Log.e(TAG, "startCamera:x ${GLES31.glIsTexture(renderer.textureID2D)} ID ${renderer.textureID2D}", )
-                            if (record) {
-                                renderer.onDraw()
-                                encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
-                                encoder.mInputSurface!!.swapBuffers()
+                        glSurface.requestRender()
+                        val latch = CountDownLatch(1)
+                        glSurface.queueEvent {
+                            handler.post {
+                                encoder.drainEncoder(false)
+                                if (record) {
+                                    videoRender.onDraw(renderer.textureID2D)
+                                    encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
+                                    encoder.mInputSurface!!.swapBuffers()
+                                }
+                                latch.countDown()
                             }
-
                         }
+                        latch.await()
                     }
                 }
 
                 if (!isRecord && record) {
                     record = false
-                    encoder.drainEncoder(true)
-                    encoder.releaseEncoder()
-                    Log.e(TAG, "startCamera: DONE")
+                    handler.post {
+
+                        glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+                        encoder.drainEncoder(true)
+                        encoder.releaseEncoder()
+                        Log.e(TAG, "startCamera: DONE")
+                    }
                 }
                 delay(frameInterval) // Wait for the next frame (instead of busy looping)
             }

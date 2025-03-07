@@ -38,8 +38,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private external fun loadLUT(assetManager: AssetManager, mFile: String): Boolean
         private external fun createTextureLUT2D(textureID: Int, lutID: Int): Int
         private external fun createTextureLUT(textureID: Int, lutID: Int)
-        private external fun read(width: Int, height: Int, channel: Int)
-        private external fun write(textureID: Int, width: Int, height: Int)
+
+        //        private external fun read(width: Int, height: Int, channel: Int)
+//        private external fun write(textureID: Int, width: Int, height: Int)
         const val GL_TEXTURE_EXTERNAL_OES: Int = 36197
     }
 
@@ -110,7 +111,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     val vao2D = IntArray(1)
     private val vbo2D = IntArray(1)
 
-    private var textures = IntArray(2)
+    private var textures = IntArray(1)
     private val textures2D = IntArray(1)
 
     var textureID = -1
@@ -119,7 +120,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     var aspectMatrix = FloatArray(16)
     var aspectMatrix2D = FloatArray(16)
 
-    fun onSurfaceCreated2D(width: Int,height: Int) {
+    fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
         fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
         program2D = gl.glCreateProgram()
@@ -179,7 +180,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindVertexArray(0)
 
 //        textureID2D = createTexture()
-        textureID2D = createRenderTexture(width,height)
+        textureID2D = createRenderTexture(512, 512)
     }
 
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
@@ -197,55 +198,74 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         this.height = height
         gl.glViewport(0, 0, width, height)
 
+        onSurfaceCreated2D()
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
         gl.glViewport(0, 0, width, height)
         this.textureWidth = width
         this.textureHeight = height
-        byteSize = textureWidth * textureHeight * 3
+//        byteSize = textureWidth * textureHeight * 3
+        gl.glTexImage2D(
+            gl.GL_TEXTURE_2D,
+            0,
+            gl.GL_RGBA,
+            textureWidth,
+            textureHeight,
+            0,
+            gl.GL_RGBA,
+            gl.GL_UNSIGNED_BYTE,
+            null
+        )
+        gl.glFramebufferTexture2D(
+            gl.GL_FRAMEBUFFER,
+            gl.GL_COLOR_ATTACHMENT0,
+            gl.GL_TEXTURE_2D,
+            textures2D[0],
+            0
+        )
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
         aspectMatrix2D = scaleMatrix
-        Matrix.setRotateM(aspectMatrix2D, 0, 180f , 0f, 0f, 1.0f)
+        Matrix.setRotateM(aspectMatrix2D, 0, 0f, 0f, 0f, 1.0f)
         Matrix.scaleM(aspectMatrix2D, 0, -1.0f, 1.0f, 1.0f)
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
 
-    private var byteSize = 0
+    //    private var byteSize = 0
     fun resize(textureWidth: Int, textureHeight: Int) {
         cameraWidth = textureWidth
         cameraHeight = textureHeight
-//        onDrawCallback.add{
-//            if (byteSize>0) {
-//                onSurfaceCreated2D(textureWidth, textureHeight)
-//                onSurfaceChanged(textureWidth,textureHeight)
-//            }
-//        }
+        onDrawCallback.add {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+            onSurfaceChanged(textureHeight, textureWidth)
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        }
+
         surfaceTexture?.setDefaultBufferSize(textureWidth, textureHeight)
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
         aspectMatrix = scaleMatrix
+        gl.glUseProgram(programOES)
         Matrix.scaleM(aspectMatrix, 0, 1.0f, -1.0f, 1.0f)
-        Matrix.setRotateM(aspectMatrix, 0, 0f , 0f, 0f, 1.0f)
+        Matrix.setRotateM(aspectMatrix, 0, 180f, 0f, 0f, 1.0f)
         gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+        gl.glUseProgram(0)
     }
 
-    fun rotate(flip:Boolean){
-        onDrawCallback.add{
-            if(flip)
-            {
+    fun rotate(flip: Boolean) {
+        onDrawCallback.add {
+            gl.glUseProgram(programOES)
+            if (flip) {
                 Matrix.scaleM(aspectMatrix, 0, 1.0f, -1.0f, 1.0f)
-                Matrix.setRotateM(aspectMatrix, 0, 0f , 0f, 0f, 1.0f)
-            }
-            else
-            {
-                Matrix.setRotateM(aspectMatrix, 0, 180f , 0f, 0f, 1.0f)
-                Matrix.scaleM(aspectMatrix, 0, -1.0f, 1.0f, 1.0f)
+                Matrix.setRotateM(aspectMatrix, 0, 180f, 0f, 0f, 1.0f)
+            } else {
+                Matrix.setRotateM(aspectMatrix, 0, 180f, 0f, 0f, 1.0f)
+                Matrix.scaleM(aspectMatrix, 0, 1.0f, -1.0f, 1.0f)
             }
             gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+            gl.glUseProgram(0)
         }
-
     }
 
     override fun onDrawFrame(p0: GL10?) {
@@ -255,7 +275,17 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 onDrawCallback.poll()?.run()
             }
         }
+        if (framebufferName != 0) {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+            onDrawToFbo(textures[0])
+        }
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+        onDraw(textureID2D)
+    }
 
+    fun onDrawToFbo(texID: Int) {
+        gl.glUseProgram(programOES)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT or gl.GL_DEPTH_BUFFER_BIT)
 
         gl.glBindVertexArray(vao[0])
@@ -263,44 +293,43 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         when (filterTypes) {
             FilterTypes.DEFAULT -> {
-                drawDefault()
+                drawDefault(texID)
             }
 
             FilterTypes.LUT -> {
-                drawLUT()
+                drawLUT(texID)
             }
 
             FilterTypes.GRAIN -> {
-                drawGRAIN()
+                drawGRAIN(texID)
             }
         }
 
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-        if (byteSize > 0) {
-            read(textureWidth, textureHeight, 4)
-        }
+//        if (byteSize > 0) {
+//            read(textureWidth, textureHeight, 4)
+//        }
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
     }
 
-    fun onDraw() {
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT or gl.GL_DEPTH_BUFFER_BIT)
+    fun onDraw(texID: Int) {
+        gl.glUseProgram(program2D)
 
         gl.glBindVertexArray(vao2D[0])
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo2D[0])
-//        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
-        gl.glActiveTexture(gl.GL_TEXTURE1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
-        gl.glUniform1i(textureHandle2D, 1)
 
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texID)
+        gl.glUniform1i(textureHandle2D, 0)
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-        write(textures2D[0], textureWidth, textureHeight)
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
     }
+
 
     /**
      * Shader Crash On ->
@@ -429,9 +458,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     }
 
 
-    private fun drawDefault() {
+    private fun drawDefault(texID: Int) {
         gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
+        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, texID)
 
         surfaceTexture?.updateTexImage()
 
@@ -482,9 +511,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     }
 
 
-    private fun drawGRAIN() {
+    private fun drawGRAIN(texID: Int) {
         gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
+        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, texID)
         gl.glUniform2f(resHandle, cameraWidth.toFloat(), cameraHeight.toFloat())
         gl.glUniform1f(timeHandle, (0..10).random().toFloat())
         surfaceTexture?.updateTexImage()
@@ -536,9 +565,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         bindVAO()
     }
 
-    private fun drawLUT() {
+    private fun drawLUT(texID: Int) {
         gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
+        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, texID)
         surfaceTexture?.updateTexImage()
 
         gl.glActiveTexture(gl.GL_TEXTURE1)
@@ -572,23 +601,24 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         )
         return textures2D[0]
     }
-    var framebufferName=0
-    private fun createRenderTexture(width: Int,height: Int): Int {
-        val args=IntArray(1)
+
+    var framebufferName = 0
+    private fun createRenderTexture(width: Int, height: Int): Int {
+        val args = IntArray(1)
 
         gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING, args, 0)
         val saveFramebuffer = args[0]
-        gl.glGetIntegerv(gl.GL_RENDERBUFFER_BINDING, args, 0)
-        val saveRenderbuffer = args[0]
+//        gl.glGetIntegerv(gl.GL_RENDERBUFFER_BINDING, args, 0)
+//        val saveRenderbuffer = args[0]
         gl.glGetIntegerv(gl.GL_TEXTURE_BINDING_2D, args, 0)
         val saveTexName = args[0]
-        
+
         gl.glGenFramebuffers(args.size, args, 0)
         framebufferName = args[0]
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
 
         gl.glGenTextures(1, textures2D, 0)
-        gl.glActiveTexture(gl.GL_TEXTURE1) //not needed since it is by default
+
         gl.glBindTexture(gl.GL_TEXTURE_2D, textures2D[0])
         gl.glTexParameteri(
             gl.GL_TEXTURE_2D,
@@ -626,9 +656,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
 
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, saveFramebuffer)
-        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, saveRenderbuffer)
+//        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, saveRenderbuffer)
         gl.glBindTexture(gl.GL_TEXTURE_2D, saveTexName)
-        
+
         return textures2D[0]
     }
 
