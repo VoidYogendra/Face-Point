@@ -29,101 +29,6 @@
 //      }
 //    }
 
-GLubyte *pixelsA = nullptr;
-GLsizei numBytes = 0;
-GLuint pboRead = 0;
-bool isDone=false;
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_avoid_facepoint_render_VoidRender_00024Companion_read(JNIEnv *env, jobject thiz,
-                                                        int width,
-                                                        int height, int channel) {
-    if (pixelsA == nullptr) {
-        numBytes = width * height * channel;
-        pixelsA = (GLubyte *) malloc(numBytes);
-        glGenBuffers(1, &pboRead);
-
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, pboRead);
-        glBufferData(GL_PIXEL_PACK_BUFFER, numBytes, nullptr,
-                     GL_STREAM_READ);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-    }
-    if(!isDone) {
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, pboRead);
-        glReadPixels(
-                0,
-                0,
-                width,
-                height,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-//            pixelsA
-                nullptr
-        );
-        auto pboMemory1 = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, numBytes, GL_MAP_READ_BIT);
-        if (pboMemory1) {
-            pixelsA = static_cast<GLubyte *>(pboMemory1);
-            glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-        } else
-            LOGE("FAILED");
-
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-        isDone= true;
-    }
-}
-GLuint pboWrite = -1;
-
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_avoid_facepoint_render_VoidRender_00024Companion_write(JNIEnv *env, jobject thiz, int textureID,
-                                                         int width, int height) {
-    if (pboWrite == -1) {
-        glGenBuffers(1, &pboWrite);
-    }
-    if(isDone) {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboWrite);
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, numBytes, nullptr, GL_STREAM_DRAW);
-
-        GLint align = -1;
-
-        glGetIntegerv(GL_UNPACK_ALIGNMENT, &align);
-//        LOGE("C++ %d", align);
-
-        if (align != 1) {
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-            glTexImage2D(
-                    GL_TEXTURE_2D,
-                    0,
-                    GL_RGBA,
-                    width,
-                    height,
-                    0,
-                    GL_RGBA,
-                    GL_UNSIGNED_BYTE,
-                    nullptr
-            );
-        }
-
-
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        auto *ptr =
-                glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, numBytes, GL_MAP_WRITE_BIT);
-
-        if (ptr) {
-            memcpy(ptr, pixelsA, numBytes);
-            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-        }
-        GLenum err;
-        while ((err = glGetError()) != GL_NO_ERROR) {
-            LOGE("OpenGL Error: %d", err);
-        }
-
-        // Unbind both the PBO and the texture
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        isDone= false;
-    }
-}
-
 void convert3DTo2DLUT(float* lut_data, int size) {
     int totalSize = size * size * size * 3;
     float* temp = (float*)malloc(totalSize * sizeof(float));  // Temporary buffer
@@ -304,5 +209,4 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_avoid_facepoint_MainActivity_00024Companion_destroy(JNIEnv *env, jobject thiz) {
     delete[] lut_data;
-    free(pixelsA);
 }

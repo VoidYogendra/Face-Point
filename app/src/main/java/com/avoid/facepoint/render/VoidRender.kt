@@ -1,12 +1,3 @@
-/**
- *                    texture id              type                                                program  fbo          context
- * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable A                  3 FBO   1    CONTEXT 7704a200
- * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable GlPreview RECORD   6 FBO   1    CONTEXT 7704a200
- * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable B                  6 FBO   0    CONTEXT 7704a200
- * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable GlPreview RECORD   9 FBO   0    CONTEXT d30afa80
- * TEXTURE OF C++ FBO    2  TYPE:GL_TEXTURE_BINDING_2D PROGRAM enable GlFilter                     3 FBO   0    CONTEXT 7704a200
- * TEXTURE OF C++ FBO    1  TYPE:GL_TEXTURE_BINDING_EXTERNAL_OES PROGRAM enable C                  3 FBO   0    CONTEXT 7704a200
- * **/
 
 package com.avoid.facepoint.render
 
@@ -38,9 +29,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private external fun loadLUT(assetManager: AssetManager, mFile: String): Boolean
         private external fun createTextureLUT2D(textureID: Int, lutID: Int): Int
         private external fun createTextureLUT(textureID: Int, lutID: Int)
-
-        //        private external fun read(width: Int, height: Int, channel: Int)
-//        private external fun write(textureID: Int, width: Int, height: Int)
         const val GL_TEXTURE_EXTERNAL_OES: Int = 36197
     }
 
@@ -307,10 +295,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
-//        if (byteSize > 0) {
-//            read(textureWidth, textureHeight, 4)
-//        }
-
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
     }
