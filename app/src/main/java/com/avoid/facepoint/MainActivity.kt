@@ -2,24 +2,22 @@ package com.avoid.facepoint
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
-import android.content.DialogInterface
 import android.graphics.Color
-import android.opengl.EGL14
-import android.opengl.GLES31
 import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.util.Range
+import android.util.Size
 import android.view.MotionEvent
 import android.view.Surface
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -27,13 +25,17 @@ import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
+import androidx.window.layout.WindowMetricsCalculator
 import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.render.Encoder
+import com.avoid.facepoint.render.GLRecord
 import com.avoid.facepoint.render.VoidRender
 import com.avoid.facepoint.ui.ButtonAdapter
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private var isRecord = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
+    private var screenSize= Size(0,0)
     private val requestCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -92,7 +95,8 @@ class MainActivity : AppCompatActivity() {
 
         val dataSet = arrayOf(
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEFAULT, renderer, null),
-            FilterItem(R.drawable.ic_launcher_background, FilterTypes.GRAIN, renderer, null),
+            FilterItem(R.drawable.ic_launcher_background, FilterTypes.BULGE, renderer, null),
+            FilterItem(R.drawable.ic_launcher_background, FilterTypes.INVERSE, renderer, null),
             FilterItem(
                 R.drawable.ic_launcher_background,
                 FilterTypes.LUT,
@@ -153,25 +157,47 @@ class MainActivity : AppCompatActivity() {
                         when (filter.filterTypes) {
                             FilterTypes.DEFAULT -> {
                                 render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
 
                                 render.createExternalTexture()
-                                render.resize(render.cameraWidth, render.cameraHeight)
+                                render.createDefault2D()
                             }
 
                             FilterTypes.LUT -> {
-
                                 render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
 
                                 render.loadLUT(filter.lutFileName!!)
                                 render.createExternalTextureLUT()
-                                render.resize(render.cameraWidth, render.cameraHeight)
+                                render.createDefault2D()
                             }
 
-                            FilterTypes.GRAIN -> {
+                            FilterTypes.INVERSE -> {
                                 render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
 
-                                render.createExternalTextureGRAIN()
-                                render.resize(render.cameraWidth, render.cameraHeight)
+                                render.createExternalTextureINVERSE()
+                                render.createDefault2D()
+                            }
+                            FilterTypes.BULGE -> {
+                                render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
+
+                                render.createExternalTexture()
+                                render.create2DBULDGE()
+                                glSurface.setOnTouchListener { _, event ->
+                                    if (event.action==MotionEvent.ACTION_DOWN|| event.action==MotionEvent.ACTION_MOVE) {
+                                        val (x, y) = normalizeTouch(
+                                            event.x,
+                                            event.y,
+                                            screenSize.width.toFloat(),
+                                            screenSize.height.toFloat()
+                                        )
+                                        Log.e(TAG, "onScrolledX: x $x y $y  event x ${event.x} event y ${event.y}  width ${screenSize.width}  height ${screenSize.height.toFloat()}", )
+                                        renderer.setPosBULDGE(x,y)
+                                    }
+                                    true
+                                }
                             }
                         }
                         if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
@@ -209,7 +235,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        var cameraProvider = cameraProviderFuture.get()
+        val cameraProvider = cameraProviderFuture.get()
         cameraProviderFuture.addListener({
 
             val resolutionSelector = ResolutionSelector.Builder()
@@ -224,10 +250,27 @@ class MainActivity : AppCompatActivity() {
 
 
             val surfaceProvider = Preview.SurfaceProvider { request ->
+                while (renderer.getSurfaceTexture()==null){
+                    continue
+                }
                 val surfaceTexture = renderer.getSurfaceTexture()
                 val surface = Surface(surfaceTexture)
                 val res = preview.resolutionInfo!!.resolution
-                renderer.resize(res.width, res.height)
+                val windowMetrics = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(context)
+                val width = windowMetrics.bounds.width()
+                var height = windowMetrics.bounds.height()
+
+                val rootView = (context as Activity).window.decorView
+                ViewCompat.getRootWindowInsets(rootView)?.let { insets ->
+                    val systemInsets = insets.getInsets(WindowInsetsCompat.Type.systemGestures())
+                    height -= systemInsets.top + systemInsets.bottom // Remove notch & navigation bar
+                }
+
+                screenSize=Size(width,height)
+
+                val (mWidth,mHeight)=resizeToFitScreen(res.width,res.height,width,height)
+
+                renderer.resize(res.width,res.height, mHeight*2,mWidth*2)
                 Log.e(TAG, "startCamera: ${preview.resolutionInfo!!.resolution}")
                 request.provideSurface(surface, ContextCompat.getMainExecutor(this)) { _ ->
                     // Handle resource release
@@ -265,7 +308,7 @@ class MainActivity : AppCompatActivity() {
             val fps = 60
             val frameInterval = 1000L / fps   // 33ms for ~30FPS
             Log.e(TAG, "startCamera: Interval $frameInterval")
-            val videoRender = VoidRender(context)
+            val glRecord= GLRecord(context)
             while (true) {
                 val frameTimeNanos = System.nanoTime()
                 if (isRecord) {
@@ -277,11 +320,7 @@ class MainActivity : AppCompatActivity() {
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
-                            videoRender.onSurfaceCreated2D()
-                            videoRender.onSurfaceChanged(
-                                renderer.cameraHeight,
-                                renderer.cameraWidth
-                            )
+                            glRecord.initForRecord(renderer.cameraHeight,renderer.cameraWidth)
                         }
                         record = true
                     } else {
@@ -291,7 +330,7 @@ class MainActivity : AppCompatActivity() {
                             handler.post {
                                 encoder.drainEncoder(false)
                                 if (record) {
-                                    videoRender.onDraw(renderer.textureID2D)
+                                    glRecord.onDrawForRecord(renderer.glRecord.recordTexture)
                                     encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
                                     encoder.mInputSurface!!.swapBuffers()
                                 }
@@ -329,6 +368,30 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
             requestStoragePermissionLauncherBeforeR
         )
+    }
+
+    private fun resizeToFitScreen(
+        cameraWidth: Int, cameraHeight: Int,
+        screenWidth: Int, screenHeight: Int
+    ): Pair<Int, Int> {
+        val cameraRatio = cameraWidth.toFloat() / cameraHeight
+        val screenRatio = screenWidth.toFloat() / screenHeight
+
+        return if (cameraRatio > screenRatio) {
+            // Fit to screen width
+            val newHeight = (screenWidth / cameraRatio).toInt()
+            screenWidth to newHeight
+        } else {
+            // Fit to screen height
+            val newWidth = (screenHeight * cameraRatio).toInt()
+            newWidth to screenHeight
+        }
+    }
+
+    fun normalizeTouch(touchX: Float, touchY: Float, screenWidth: Float, screenHeight: Float): Pair<Float, Float> {
+        val normalizedX = touchX / screenWidth // Now between 0 and 1
+        val normalizedY = 1f - (touchY / screenHeight) // Flip Y but keep in 0-1 range
+        return Pair(normalizedX, normalizedY)
     }
 
     private fun checkPermission(permission: String, launcher: ActivityResultLauncher<String>) {

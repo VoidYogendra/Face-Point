@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.recyclerview)
+    implementation(libs.androidx.window)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
