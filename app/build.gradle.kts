@@ -63,6 +63,9 @@ android {
 }
 
 dependencies {
+    implementation(libs.facemesh)
+    implementation(libs.solution.core)
+
     implementation(libs.material)
     implementation(libs.androidx.camera.core)
     implementation (libs.androidx.camera.camera2)

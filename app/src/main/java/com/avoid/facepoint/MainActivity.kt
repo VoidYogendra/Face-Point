@@ -4,9 +4,16 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.SurfaceTexture
+import android.opengl.EGL14
+import android.opengl.GLES11Ext
+import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
@@ -15,9 +22,11 @@ import android.util.Size
 import android.view.MotionEvent
 import android.view.Surface
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -35,14 +44,30 @@ import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.render.Encoder
+import com.avoid.facepoint.render.GLFace
 import com.avoid.facepoint.render.GLRecord
 import com.avoid.facepoint.render.VoidRender
+import com.avoid.facepoint.render.egl.EglCore
+import com.avoid.facepoint.render.egl.OffscreenSurface
 import com.avoid.facepoint.ui.ButtonAdapter
+import com.avoid.facepoint.ui.FaceMeshResultGlRenderer
+import com.google.mediapipe.formats.proto.LandmarkProto
+import com.google.mediapipe.framework.AppTextureFrame
+import com.google.mediapipe.solutioncore.CameraInput
+import com.google.mediapipe.solutioncore.SolutionGlSurfaceViewRenderer
+import com.google.mediapipe.solutions.facemesh.FaceMesh
+import com.google.mediapipe.solutions.facemesh.FaceMeshOptions
+import com.google.mediapipe.solutions.facemesh.FaceMeshResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import javax.microedition.khronos.egl.EGL10
+import javax.microedition.khronos.egl.EGLContext
 
 
 class MainActivity : AppCompatActivity() {
@@ -53,7 +78,7 @@ class MainActivity : AppCompatActivity() {
     private var isRecord = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
-    private var screenSize= Size(0,0)
+    private var screenSize = Size(0, 0)
     private val requestCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -87,10 +112,10 @@ class MainActivity : AppCompatActivity() {
     private fun init() {
         context = this
         glSurface = mainActivityBinding.GLSMainRender
-        glSurface.setEGLContextClientVersion(GL_VERSION)
-
         renderer = VoidRender(context)
+        glSurface.setEGLContextClientVersion(GL_VERSION)
         glSurface.setRenderer(renderer)
+        setupStreamingModePipeline()
 
 
         val dataSet = arrayOf(
@@ -179,6 +204,7 @@ class MainActivity : AppCompatActivity() {
                                 render.createExternalTextureINVERSE()
                                 render.createDefault2D()
                             }
+
                             FilterTypes.BULGE -> {
                                 render.deleteCurrentProgram()
                                 render.deleteCurrentProgram2D()
@@ -186,15 +212,18 @@ class MainActivity : AppCompatActivity() {
                                 render.createExternalTexture()
                                 render.create2DBULDGE()
                                 glSurface.setOnTouchListener { _, event ->
-                                    if (event.action==MotionEvent.ACTION_DOWN|| event.action==MotionEvent.ACTION_MOVE) {
+                                    if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
                                         val (x, y) = normalizeTouch(
                                             event.x,
                                             event.y,
                                             screenSize.width.toFloat(),
                                             screenSize.height.toFloat()
                                         )
-                                        Log.e(TAG, "onScrolledX: x $x y $y  event x ${event.x} event y ${event.y}  width ${screenSize.width}  height ${screenSize.height.toFloat()}", )
-                                        renderer.setPosBULDGE(x,y)
+                                        Log.e(
+                                            TAG,
+                                            "onScrolledX: x $x y $y  event x ${event.x} event y ${event.y}  width ${screenSize.width}  height ${screenSize.height.toFloat()}"
+                                        )
+                                        renderer.setPosBULDGE(x, y)
                                     }
                                     true
                                 }
@@ -250,13 +279,15 @@ class MainActivity : AppCompatActivity() {
 
 
             val surfaceProvider = Preview.SurfaceProvider { request ->
-                while (renderer.getSurfaceTexture()==null){
+                while (renderer.getSurfaceTexture() == null) {
                     continue
                 }
                 val surfaceTexture = renderer.getSurfaceTexture()
-                val surface = Surface(surfaceTexture)
                 val res = preview.resolutionInfo!!.resolution
-                val windowMetrics = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(context)
+                val surface = Surface(surfaceTexture)
+
+                val windowMetrics =
+                    WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(context)
                 val width = windowMetrics.bounds.width()
                 var height = windowMetrics.bounds.height()
 
@@ -266,12 +297,14 @@ class MainActivity : AppCompatActivity() {
                     height -= systemInsets.top + systemInsets.bottom // Remove notch & navigation bar
                 }
 
-                screenSize=Size(width,height)
+                screenSize = Size(width, height)
 
-                val (mWidth,mHeight)=resizeToFitScreen(res.width,res.height,width,height)
+                val (mWidth, mHeight) = resizeToFitScreen(res.width, res.height, width, height)
 
-                renderer.resize(res.width,res.height, mHeight*2,mWidth*2)
+                renderer.resize(res.width, res.height, mHeight * 2, mWidth * 2)
                 Log.e(TAG, "startCamera: ${preview.resolutionInfo!!.resolution}")
+
+
                 request.provideSurface(surface, ContextCompat.getMainExecutor(this)) { _ ->
                     // Handle resource release
                 }
@@ -308,7 +341,7 @@ class MainActivity : AppCompatActivity() {
             val fps = 60
             val frameInterval = 1000L / fps   // 33ms for ~30FPS
             Log.e(TAG, "startCamera: Interval $frameInterval")
-            val glRecord= GLRecord(context)
+            val glRecord = GLRecord(context)
             while (true) {
                 val frameTimeNanos = System.nanoTime()
                 if (isRecord) {
@@ -320,7 +353,7 @@ class MainActivity : AppCompatActivity() {
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
-                            glRecord.initForRecord(renderer.cameraHeight,renderer.cameraWidth)
+                            glRecord.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
                         }
                         record = true
                     } else {
@@ -388,7 +421,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun normalizeTouch(touchX: Float, touchY: Float, screenWidth: Float, screenHeight: Float): Pair<Float, Float> {
+    fun normalizeTouch(
+        touchX: Float,
+        touchY: Float,
+        screenWidth: Float,
+        screenHeight: Float
+    ): Pair<Float, Float> {
         val normalizedX = touchX / screenWidth // Now between 0 and 1
         val normalizedY = 1f - (touchY / screenHeight) // Flip Y but keep in 0-1 range
         return Pair(normalizedX, normalizedY)
@@ -396,6 +434,125 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermission(permission: String, launcher: ActivityResultLauncher<String>) {
         launcher.launch(permission)
+    }
+
+    var facemesh: FaceMesh? = null
+    var mOffscreenSurface: OffscreenSurface? = null
+
+    var executor: ExecutorService = Executors.newSingleThreadExecutor()
+
+//    var rendererX = SolutionGlSurfaceViewRenderer<FaceMeshResult?>()
+
+
+    fun convertLegacyEGLContext(legacyContext: javax.microedition.khronos.egl.EGLContext): android.opengl.EGLContext? {
+        val egl = EGLContext.getEGL() as EGL10
+        val display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY)
+
+
+        // Ensure EGL is initialized
+        val version = IntArray(2)
+        egl.eglInitialize(display, version)
+
+        // Convert to OpenGL EGL context
+        val eglContextPointer = legacyContext
+        return EGL14.eglGetCurrentContext() // Modern EGL14 context
+    }
+
+
+    fun isFaceUpsideDown(landmarks: List<LandmarkProto.NormalizedLandmark>): Boolean {
+        // Key Landmarks: Nose Tip, Left Eye, Right Eye, Chin
+        val noseTip = landmarks[1] // Nose Tip (approximate)
+        val leftEye = landmarks[33] // Left Eye (approximate)
+        val rightEye = landmarks[263] // Right Eye (approximate)
+        val chin = landmarks[199] // Chin (approximate)
+
+        // Compute vertical distances
+        val noseToEyes = (leftEye.y + rightEye.y) / 2 - noseTip.y
+        val noseToChin = chin.y - noseTip.y
+
+        // If nose is lower than eyes and chin is higher than nose, it's upside down
+        return noseToEyes > 0 && noseToChin < 0
+    }
+    private fun setupStreamingModePipeline() {
+        // Initializes a new MediaPipe Face Mesh solution instance in the streaming mode.
+
+        val glRecord = GLRecord(context)
+//        val glFace = GLFace(context)
+        facemesh =
+            FaceMesh(
+                this,
+                FaceMeshOptions.builder()
+                    .setStaticImageMode(false)
+                    .setRefineLandmarks(true)
+                    .setRunOnGpu(true)
+                    .build()
+            )
+        facemesh!!.setErrorListener { message: String, e: RuntimeException? ->
+            Log.e(
+                TAG,
+                "MediaPipe Face Mesh error:$message"
+            )
+        }
+
+//        rendererX.setSolutionResultRenderer(FaceMeshResultGlRenderer())
+//        rendererX.setRenderInputImage(true)
+//
+//        rendererX.setTextureTarget(3553)
+
+        var startTime=0L
+        facemesh!!.setResultListener { faceMeshResult ->
+
+            Log.e(
+                TAG,
+                "setupStreamingModePipeline: ${faceMeshResult!!.multiFaceLandmarks()!!.size}"
+
+            )
+            val x=faceMeshResult.multiFaceLandmarks()
+            val endTime = System.nanoTime() // Capture end time
+            val executionTimeMs = (endTime - startTime) / 1_000_000 // Convert ns to ms
+
+            Log.e(TAG, "Faces Detected: ${x.size}")
+            Log.e(TAG, "Callback Execution Time: $executionTimeMs ms")
+        }
+        val core = EglCore(convertLegacyEGLContext(facemesh!!.glContext), EglCore.FLAG_TRY_GLES3)
+        val bitmap = BitmapFactory.decodeStream(context.assets.open("linus.jpg"))
+        var temp:AppTextureFrame?=null
+        CoroutineScope(Dispatchers.Default).launch {
+
+            renderer.readCallback={ byte,w,h->
+                if (mOffscreenSurface==null){
+                    executor.execute {
+                        mOffscreenSurface = OffscreenSurface(core, w, h)
+                        mOffscreenSurface!!.makeCurrent()
+                        glRecord.initForRecord(w, h)
+                        temp = AppTextureFrame(glRecord.recordTexture, w, h)
+                    }
+                }
+
+                val frameTimeNanos = System.nanoTime()
+//                val latch = CountDownLatch(1)
+                executor.execute {
+                    startTime = System.nanoTime() // Capture start time
+                    if (renderer.buffer!=null) {
+                        glRecord.onDrawForBuffer(
+                            glRecord.recordTexture,
+                            byte,
+                            w,
+                            h
+                        )
+                    }else
+                        glRecord.onDrawForRecordBitmap(glRecord.recordTexture,bitmap)
+                    temp?.timestamp = frameTimeNanos
+                    facemesh!!.send(temp)
+                    mOffscreenSurface!!.swapBuffers()
+                    if(isRecord)
+                    mOffscreenSurface!!.saveFrame(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),"test $frameTimeNanos .png"))
+
+//                    latch.countDown()
+                }
+//                latch.await()
+            }
+        }
     }
 
     override fun onDestroy() {

@@ -5,6 +5,7 @@ import android.content.res.AssetManager
 import android.graphics.SurfaceTexture
 import android.opengl.EGL14
 import android.opengl.EGLContext
+import android.opengl.GLES31
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
@@ -93,13 +94,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var textures = IntArray(1)
     private val textures2D = IntArray(1)
 
-    private var textureID = -1
+    var textureID = -1
     private var textureID2D = -1
 
     private var aspectMatrix = FloatArray(16)
     private var aspectMatrix2D = FloatArray(16)
 
-    val glRecord=GLRecord(context)
+    val glRecord = GLRecord(context)
 
     private fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
@@ -163,7 +164,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         )
 
 
-
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
         aspectMatrix2D = scaleMatrix
@@ -176,9 +176,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     fun resize(textureWidth: Int, textureHeight: Int, screenWidth: Int, screenHeight: Int) {
         cameraWidth = textureWidth
         cameraHeight = textureHeight
+
+
         onDrawCallback.add {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onSurfaceChanged(screenWidth, screenHeight)
+            buffer = ByteBuffer.allocateDirect(cameraWidth * cameraHeight * 4)
+                .order(ByteOrder.nativeOrder())
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
         }
 
@@ -208,6 +212,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
+    var buffer: ByteBuffer? = null
+    var readCallback: ((byte: ByteBuffer, width: Int, height: Int) -> Unit)? = null
+
     override fun onDrawFrame(p0: GL10?) {
         //so it does not render during new setup
         synchronized(onDrawCallback) {
@@ -234,6 +241,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
         glRecord.onDrawForRecord(glRecord.recordTexture)
+
         when (filterTypes) {
 
             FilterTypes.BULGE -> {
@@ -243,6 +251,14 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             else -> {
                 onDraw(textureID2D)
             }
+        }
+        if (buffer != null) {
+            GLES31.glFinish()
+            GLES31.glReadPixels(
+                0, 0, cameraWidth, cameraHeight,
+                GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
+            )
+            readCallback?.invoke(buffer!!, cameraHeight,cameraWidth,)
         }
     }
 

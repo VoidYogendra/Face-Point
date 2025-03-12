@@ -1,7 +1,9 @@
 package com.avoid.facepoint.render
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.opengl.GLES31
+import android.opengl.GLUtils
 import android.opengl.Matrix
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -175,6 +177,106 @@ class GLRecord(private val context: Context) {
         GLES31.glUniformMatrix4fv(matrixHandle2DRec, 1, false, aspectMatrix2DRec, 0)
     }
 
+
+    fun initForUse(width: Int, height: Int) {
+        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "main_vert.glsl")
+        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        program2DRec = GLES31.glCreateProgram()
+        GLES31.glAttachShader(program2DRec, vertexShader2DRec)
+        GLES31.glAttachShader(program2DRec, fragmentShaderRec)
+        GLES31.glLinkProgram(program2DRec)
+        GLES31.glUseProgram(program2DRec) //use it in Codec
+
+        positionHandle2DRec = GLES31.glGetAttribLocation(program2DRec, "aPosition")
+        texturePositionHandle2DRec = GLES31.glGetAttribLocation(program2DRec, "aTexPosition")
+        textureHandle2DRec = GLES31.glGetUniformLocation(program2DRec, "uTexture")
+        matrixHandle2DRec = GLES31.glGetUniformLocation(program2DRec, "u_Matrix")
+
+
+        val args = IntArray(1)
+        GLES31.glGenTextures(1, args, 0)
+        recordTexture = args[0]
+
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, recordTexture)
+        GLES31.glTexParameteri(
+            GLES31.GL_TEXTURE_2D,
+            GLES31.GL_TEXTURE_MIN_FILTER,
+            GLES31.GL_LINEAR
+        )
+        GLES31.glTexParameteri(
+            GLES31.GL_TEXTURE_2D,
+            GLES31.GL_TEXTURE_MAG_FILTER,
+            GLES31.GL_LINEAR
+        )
+
+        GLES31.glTexImage2D(
+            GLES31.GL_TEXTURE_2D,
+            0,
+            GLES31.GL_RGBA,
+            width,
+            height,
+            0,
+            GLES31.GL_RGBA,
+            GLES31.GL_UNSIGNED_BYTE,
+            null
+        )
+
+        //-----------------------------------------------------------------------
+        GLES31.glGenVertexArrays(1, vao2DRec, 0)
+        GLES31.glGenBuffers(1, vbo2DRec, 0)
+        //generate vao vbo
+        GLES31.glGenVertexArrays(1, vao2DRec, 0)
+        GLES31.glGenBuffers(1, vbo2DRec, 0)
+        //bind vao vbo
+        GLES31.glBindVertexArray(vao2DRec[0])
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, vbo2DRec[0])
+
+        val buffer: FloatBuffer =
+            ByteBuffer.allocateDirect(vertexData2D.size * FLOAT_SIZE_BYTES)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer()
+                .apply {
+                    put(vertexData2D)
+                    position(0)
+                }
+
+        GLES31.glBufferData(
+            GLES31.GL_ARRAY_BUFFER,
+            vertexData2D.size * FLOAT_SIZE_BYTES,
+            buffer,
+            GLES31.GL_STATIC_DRAW
+        )
+
+        GLES31.glVertexAttribPointer(
+            positionHandle2DRec,
+            2,
+            GLES31.GL_FLOAT,
+            false,
+            STRIDES,
+            0
+        )
+        GLES31.glEnableVertexAttribArray(positionHandle2DRec)
+
+        GLES31.glVertexAttribPointer(
+            texturePositionHandle2DRec,
+            2,
+            GLES31.GL_FLOAT,
+            false,
+            STRIDES,
+            2 * FLOAT_SIZE_BYTES
+        )
+        GLES31.glEnableVertexAttribArray(texturePositionHandle2DRec)
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
+        GLES31.glBindVertexArray(0)
+        //-----------------------------------------------------------------------
+
+        GLES31.glViewport(0, 0, width, height)
+        val scaleMatrix = FloatArray(16)
+        Matrix.setIdentityM(scaleMatrix, 0)
+        aspectMatrix2DRec = scaleMatrix
+        GLES31.glUniformMatrix4fv(matrixHandle2DRec, 1, false, aspectMatrix2DRec, 0)
+    }
+
     fun onDrawForRecord(texID: Int) {
         GLES31.glUseProgram(program2DRec)
 
@@ -186,6 +288,52 @@ class GLRecord(private val context: Context) {
         GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, texID)
         GLES31.glUniform1i(textureHandle2DRec, 0)
         GLES31.glDrawArrays(GLES31.GL_TRIANGLE_STRIP, 0, 4)
+
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
+        GLES31.glBindVertexArray(0)
+    }
+
+    fun onDrawForRecordBitmap(texID: Int,bitmap: Bitmap) {
+        GLES31.glUseProgram(program2DRec)
+
+        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT or GLES31.GL_DEPTH_BUFFER_BIT)
+        GLES31.glBindVertexArray(vao2DRec[0])
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, vbo2DRec[0])
+
+        GLES31.glActiveTexture(GLES31.GL_TEXTURE0)
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, texID)
+        GLUtils.texImage2D(GLES31.GL_TEXTURE_2D,0,bitmap,0)
+        GLES31.glUniform1i(textureHandle2DRec, 0)
+        GLES31.glDrawArrays(GLES31.GL_TRIANGLE_STRIP, 0, 4)
+
+
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
+        GLES31.glBindVertexArray(0)
+    }
+
+    fun onDrawForBuffer(texID: Int,byteBuffer: ByteBuffer,width: Int,height: Int) {
+        GLES31.glUseProgram(program2DRec)
+
+        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT or GLES31.GL_DEPTH_BUFFER_BIT)
+        GLES31.glBindVertexArray(vao2DRec[0])
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, vbo2DRec[0])
+
+        GLES31.glActiveTexture(GLES31.GL_TEXTURE0)
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, texID)
+        GLES31.glTexImage2D(
+            GLES31.GL_TEXTURE_2D,
+            0,
+            GLES31.GL_RGBA,
+            width,
+            height,
+            0,
+            GLES31.GL_RGBA,
+            GLES31.GL_UNSIGNED_BYTE,
+            byteBuffer
+        )
+        GLES31.glUniform1i(textureHandle2DRec, 0)
+        GLES31.glDrawArrays(GLES31.GL_TRIANGLE_STRIP, 0, 4)
+
 
         GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
         GLES31.glBindVertexArray(0)
