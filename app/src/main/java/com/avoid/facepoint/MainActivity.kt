@@ -211,22 +211,22 @@ class MainActivity : AppCompatActivity() {
 
                                 render.createExternalTexture()
                                 render.create2DBULDGE()
-                                glSurface.setOnTouchListener { _, event ->
-                                    if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
-                                        val (x, y) = normalizeTouch(
-                                            event.x,
-                                            event.y,
-                                            screenSize.width.toFloat(),
-                                            screenSize.height.toFloat()
-                                        )
-                                        Log.e(
-                                            TAG,
-                                            "onScrolledX: x $x y $y  event x ${event.x} event y ${event.y}  width ${screenSize.width}  height ${screenSize.height.toFloat()}"
-                                        )
-                                        renderer.setPosBULDGE(x, y)
-                                    }
-                                    true
-                                }
+//                                glSurface.setOnTouchListener { _, event ->
+//                                    if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
+//                                        val (x, y) = normalizeTouch(
+//                                            event.x,
+//                                            event.y,
+//                                            screenSize.width.toFloat(),
+//                                            screenSize.height.toFloat()
+//                                        )
+//                                        Log.e(
+//                                            TAG,
+//                                            "onScrolledX: x $x y $y  event x ${event.x} event y ${event.y}  width ${screenSize.width}  height ${screenSize.height.toFloat()}"
+//                                        )
+//                                        renderer.setPosBULDGE(x, y)
+//                                    }
+//                                    true
+//                                }
                             }
                         }
                         if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
@@ -438,46 +438,11 @@ class MainActivity : AppCompatActivity() {
 
     var facemesh: FaceMesh? = null
     var mOffscreenSurface: OffscreenSurface? = null
-
     var executor: ExecutorService = Executors.newSingleThreadExecutor()
 
-//    var rendererX = SolutionGlSurfaceViewRenderer<FaceMeshResult?>()
-
-
-    fun convertLegacyEGLContext(legacyContext: javax.microedition.khronos.egl.EGLContext): android.opengl.EGLContext? {
-        val egl = EGLContext.getEGL() as EGL10
-        val display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY)
-
-
-        // Ensure EGL is initialized
-        val version = IntArray(2)
-        egl.eglInitialize(display, version)
-
-        // Convert to OpenGL EGL context
-        val eglContextPointer = legacyContext
-        return EGL14.eglGetCurrentContext() // Modern EGL14 context
-    }
-
-
-    fun isFaceUpsideDown(landmarks: List<LandmarkProto.NormalizedLandmark>): Boolean {
-        // Key Landmarks: Nose Tip, Left Eye, Right Eye, Chin
-        val noseTip = landmarks[1] // Nose Tip (approximate)
-        val leftEye = landmarks[33] // Left Eye (approximate)
-        val rightEye = landmarks[263] // Right Eye (approximate)
-        val chin = landmarks[199] // Chin (approximate)
-
-        // Compute vertical distances
-        val noseToEyes = (leftEye.y + rightEye.y) / 2 - noseTip.y
-        val noseToChin = chin.y - noseTip.y
-
-        // If nose is lower than eyes and chin is higher than nose, it's upside down
-        return noseToEyes > 0 && noseToChin < 0
-    }
     private fun setupStreamingModePipeline() {
-        // Initializes a new MediaPipe Face Mesh solution instance in the streaming mode.
 
         val glRecord = GLRecord(context)
-//        val glFace = GLFace(context)
         facemesh =
             FaceMesh(
                 this,
@@ -494,33 +459,38 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-//        rendererX.setSolutionResultRenderer(FaceMeshResultGlRenderer())
-//        rendererX.setRenderInputImage(true)
-//
-//        rendererX.setTextureTarget(3553)
-
-        var startTime=0L
         facemesh!!.setResultListener { faceMeshResult ->
-
+            if (glSurface.renderMode != GLSurfaceView.RENDERMODE_WHEN_DIRTY)
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
             Log.e(
                 TAG,
                 "setupStreamingModePipeline: ${faceMeshResult!!.multiFaceLandmarks()!!.size}"
-
             )
-            val x=faceMeshResult.multiFaceLandmarks()
-            val endTime = System.nanoTime() // Capture end time
-            val executionTimeMs = (endTime - startTime) / 1_000_000 // Convert ns to ms
-
-            Log.e(TAG, "Faces Detected: ${x.size}")
-            Log.e(TAG, "Callback Execution Time: $executionTimeMs ms")
+            val facelandmark = faceMeshResult.multiFaceLandmarks()
+            if (facelandmark.size > 0) {
+                val x = facelandmark[0].landmarkOrBuilderList[0].x
+                val y = facelandmark[0].landmarkOrBuilderList[0].y
+                val (x0, y0) = normalizeTouch(
+                    x * renderer.width,
+                    y * renderer.height,
+                    renderer.width.toFloat(),
+                    renderer.height.toFloat()
+                )
+                renderer.setPosBULDGE(x0 - 0.06f, y0)
+            }
+            glSurface.requestRender()
         }
-        val core = EglCore(convertLegacyEGLContext(facemesh!!.glContext), EglCore.FLAG_TRY_GLES3)
+
+        //face mesh creates new context on the same thread
+        val core = EglCore(EGL14.eglGetCurrentContext(), EglCore.FLAG_TRY_GLES3)
         val bitmap = BitmapFactory.decodeStream(context.assets.open("linus.jpg"))
-        var temp:AppTextureFrame?=null
+        var temp: AppTextureFrame? = null
         CoroutineScope(Dispatchers.Default).launch {
 
-            renderer.readCallback={ byte,w,h->
-                if (mOffscreenSurface==null){
+            renderer.readCallback = { byte, w, h ->
+//                val w=bitmap.width
+//                val h=bitmap.height
+                if (mOffscreenSurface == null) {
                     executor.execute {
                         mOffscreenSurface = OffscreenSurface(core, w, h)
                         mOffscreenSurface!!.makeCurrent()
@@ -532,21 +502,28 @@ class MainActivity : AppCompatActivity() {
                 val frameTimeNanos = System.nanoTime()
 //                val latch = CountDownLatch(1)
                 executor.execute {
-                    startTime = System.nanoTime() // Capture start time
-                    if (renderer.buffer!=null) {
+                    glRecord.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
+                    if (renderer.buffer != null) {
                         glRecord.onDrawForBuffer(
                             glRecord.recordTexture,
                             byte,
                             w,
                             h
                         )
-                    }else
-                        glRecord.onDrawForRecordBitmap(glRecord.recordTexture,bitmap)
+                    }
+//                    else
+//                        glRecord.onDrawForRecordBitmap(glRecord.recordTexture,bitmap)
                     temp?.timestamp = frameTimeNanos
                     facemesh!!.send(temp)
                     mOffscreenSurface!!.swapBuffers()
-                    if(isRecord)
-                    mOffscreenSurface!!.saveFrame(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),"test $frameTimeNanos .png"))
+                    if (isRecord)
+                        mOffscreenSurface!!.saveFrame(
+                            File(
+                                Environment.getExternalStoragePublicDirectory(
+                                    Environment.DIRECTORY_DOWNLOADS
+                                ), "test $frameTimeNanos .png"
+                            )
+                        )
 
 //                    latch.countDown()
                 }

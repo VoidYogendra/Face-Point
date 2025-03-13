@@ -181,7 +181,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         onDrawCallback.add {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onSurfaceChanged(screenWidth, screenHeight)
-            buffer = ByteBuffer.allocateDirect(cameraWidth * cameraHeight * 4)
+            buffer = ByteBuffer.allocateDirect(width * height * 4)
                 .order(ByteOrder.nativeOrder())
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
         }
@@ -255,10 +255,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         if (buffer != null) {
             GLES31.glFinish()
             GLES31.glReadPixels(
-                0, 0, cameraWidth, cameraHeight,
+                0, 0, this.width, this.height,
                 GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
             )
-            readCallback?.invoke(buffer!!, cameraHeight,cameraWidth,)
+            readCallback?.invoke(buffer!!, this.width, this.height)
         }
     }
 

@@ -273,7 +273,20 @@ class GLRecord(private val context: Context) {
         GLES31.glViewport(0, 0, width, height)
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
+
         aspectMatrix2DRec = scaleMatrix
+        GLES31.glUniformMatrix4fv(matrixHandle2DRec, 1, false, aspectMatrix2DRec, 0)
+    }
+
+    fun rotate(rotate:Boolean){
+        if(rotate){
+            Matrix.setRotateM(aspectMatrix2DRec, 0, 0f, 0f, 0f, 1.0f)
+            Matrix.scaleM(aspectMatrix2DRec, 0, 1.0f, -1.0f, 1.0f)
+        }
+        else{
+            Matrix.setRotateM(aspectMatrix2DRec, 0, 0f, 0f, 0f, 1.0f)
+            Matrix.scaleM(aspectMatrix2DRec, 0, 1.0f, -1.0f, 1.0f)
+        }
         GLES31.glUniformMatrix4fv(matrixHandle2DRec, 1, false, aspectMatrix2DRec, 0)
     }
 
