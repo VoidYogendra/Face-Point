@@ -11,6 +11,8 @@ import android.opengl.Matrix
 import android.util.Log
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
+import com.avoid.facepoint.ui.FaceMeshResultGlRenderer
+import com.google.mediapipe.solutions.facemesh.FaceMeshResult
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -102,6 +104,11 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     val glRecord = GLRecord(context)
 
+    var faceMeshResult: FaceMeshResult?=null
+    var faceGLRender:FaceMeshResultGlRenderer?=null
+    var matrix=MatrixCalc()
+    var maskMatrix=FloatArray(16)
+
     private fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
         fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
@@ -129,6 +136,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             surfaceTexture = SurfaceTexture(textureID)
 
         eglContext = EGL14.eglGetCurrentContext()
+
+        faceGLRender=FaceMeshResultGlRenderer()
     }
 
     override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
@@ -137,10 +146,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glViewport(0, 0, width, height)
 
         onSurfaceCreated2D()
+        matrix.surface(width,height)
+        matrix.frame(width,height)
+        maskMatrix=matrix.doIT(maskMatrix)
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
-        gl.glViewport(0, 0, width, height)
+//        gl.glViewport(0, 0, width, height)
         this.textureWidth = width
         this.textureHeight = height
 //        byteSize = textureWidth * textureHeight * 3
@@ -225,6 +237,32 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         if (framebufferName != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onDrawToFbo(textures[0])
+            when(filterTypes){
+                FilterTypes.BULGE -> {
+                    if (buffer != null) {
+                        GLES31.glFinish()
+                        GLES31.glReadPixels(
+                            0, 0, this.width, this.height,
+                            GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
+                        )
+                        readCallback?.invoke(buffer!!, this.width, this.height)
+                    }
+                }
+                FilterTypes.DEBUG->{
+                    if (buffer != null) {
+                        GLES31.glFinish()
+                        GLES31.glReadPixels(
+                            0, 0, this.width, this.height,
+                            GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
+                        )
+                        readCallback?.invoke(buffer!!, this.width, this.height)
+                    }
+                    if(faceMeshResult!=null){
+                        faceGLRender!!.renderResult(faceMeshResult,maskMatrix)
+                    }
+                }
+                else->{}
+            }
         }
         if (glRecord.framebufferRecord != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glRecord.framebufferRecord)
@@ -252,14 +290,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 onDraw(textureID2D)
             }
         }
-        if (buffer != null) {
-            GLES31.glFinish()
-            GLES31.glReadPixels(
-                0, 0, this.width, this.height,
-                GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
-            )
-            readCallback?.invoke(buffer!!, this.width, this.height)
-        }
     }
 
     fun onDrawToFbo(texID: Int) {
@@ -285,6 +315,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             FilterTypes.BULGE -> {
                 drawDefault(texID)
             }
+            else-> drawDefault(texID)
         }
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
@@ -528,21 +559,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         resHandle = gl.glGetUniformLocation(programOES, "iResolution")
         timeHandle = gl.glGetUniformLocation(programOES, "iTime")
 
-//        textures = IntArray(1)
-//        gl.glGenTextures(1, textures, 0)
-//        gl.glActiveTexture(gl.GL_TEXTURE0) //not needed since it is by default
-//        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
-//        gl.glTexParameteri(
-//            GL_TEXTURE_EXTERNAL_OES,
-//            gl.GL_TEXTURE_MIN_FILTER,
-//            gl.GL_LINEAR
-//        )
-//        gl.glTexParameteri(
-//            GL_TEXTURE_EXTERNAL_OES,
-//            gl.GL_TEXTURE_MAG_FILTER,
-//            gl.GL_LINEAR
-//        )
-//        textureID = textures[0]
         bindVAO()
     }
 
@@ -564,6 +580,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var centerHandle = 0
     private var radiusHandle = 0
     private var scaleHandle = 0
+    private var scale = 0.5f
     private var x = 0.5f
     private var y = 0.5f
 
@@ -608,6 +625,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         this.x = x
         this.y = y
     }
+    fun setPosSCALE(scale: Float) {
+        this.scale=scale
+    }
 
     private fun drawBULDGE(texID: Int) {
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
@@ -621,7 +641,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindTexture(gl.GL_TEXTURE_2D, texID)
 
         gl.glUniform2f(centerHandle, x, y);
-        gl.glUniform1f(radiusHandle, 0.1f);
+        gl.glUniform1f(radiusHandle, scale);
         gl.glUniform1f(scaleHandle, 0.5f);
 
         gl.glUniform1i(textureHandle2D, 0)

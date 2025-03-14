@@ -2,31 +2,21 @@ package com.avoid.facepoint
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.SurfaceTexture
 import android.opengl.EGL14
-import android.opengl.GLES11Ext
-import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.util.Range
-import android.util.Size
 import android.view.MotionEvent
 import android.view.Surface
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -34,40 +24,29 @@ import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
-import androidx.window.layout.WindowMetricsCalculator
 import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.render.Encoder
-import com.avoid.facepoint.render.GLFace
 import com.avoid.facepoint.render.GLRecord
 import com.avoid.facepoint.render.VoidRender
 import com.avoid.facepoint.render.egl.EglCore
 import com.avoid.facepoint.render.egl.OffscreenSurface
 import com.avoid.facepoint.ui.ButtonAdapter
-import com.avoid.facepoint.ui.FaceMeshResultGlRenderer
-import com.google.mediapipe.formats.proto.LandmarkProto
 import com.google.mediapipe.framework.AppTextureFrame
-import com.google.mediapipe.solutioncore.CameraInput
-import com.google.mediapipe.solutioncore.SolutionGlSurfaceViewRenderer
 import com.google.mediapipe.solutions.facemesh.FaceMesh
 import com.google.mediapipe.solutions.facemesh.FaceMeshOptions
-import com.google.mediapipe.solutions.facemesh.FaceMeshResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import javax.microedition.khronos.egl.EGL10
-import javax.microedition.khronos.egl.EGLContext
+import kotlin.math.sqrt
 
 
 class MainActivity : AppCompatActivity() {
@@ -78,7 +57,6 @@ class MainActivity : AppCompatActivity() {
     private var isRecord = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
-    private var screenSize = Size(0, 0)
     private val requestCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -121,6 +99,7 @@ class MainActivity : AppCompatActivity() {
         val dataSet = arrayOf(
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEFAULT, renderer, null),
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.BULGE, renderer, null),
+            FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEBUG, renderer, null),
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.INVERSE, renderer, null),
             FilterItem(
                 R.drawable.ic_launcher_background,
@@ -178,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                     val render = filter.render
                     render.onDrawCallback.add {
                         render.filterTypes = filter.filterTypes
-
+                        glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
                         when (filter.filterTypes) {
                             FilterTypes.DEFAULT -> {
                                 render.deleteCurrentProgram()
@@ -206,27 +185,21 @@ class MainActivity : AppCompatActivity() {
                             }
 
                             FilterTypes.BULGE -> {
+                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                                 render.deleteCurrentProgram()
                                 render.deleteCurrentProgram2D()
 
                                 render.createExternalTexture()
                                 render.create2DBULDGE()
-//                                glSurface.setOnTouchListener { _, event ->
-//                                    if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_MOVE) {
-//                                        val (x, y) = normalizeTouch(
-//                                            event.x,
-//                                            event.y,
-//                                            screenSize.width.toFloat(),
-//                                            screenSize.height.toFloat()
-//                                        )
-//                                        Log.e(
-//                                            TAG,
-//                                            "onScrolledX: x $x y $y  event x ${event.x} event y ${event.y}  width ${screenSize.width}  height ${screenSize.height.toFloat()}"
-//                                        )
-//                                        renderer.setPosBULDGE(x, y)
-//                                    }
-//                                    true
-//                                }
+                            }
+
+                            FilterTypes.DEBUG -> {
+                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                                render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
+
+                                render.createExternalTexture()
+                                render.createDefault2D()
                             }
                         }
                         if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
@@ -286,23 +259,18 @@ class MainActivity : AppCompatActivity() {
                 val res = preview.resolutionInfo!!.resolution
                 val surface = Surface(surfaceTexture)
 
-                val windowMetrics =
-                    WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(context)
-                val width = windowMetrics.bounds.width()
-                var height = windowMetrics.bounds.height()
+                val (mWidth, mHeight) = resizeToFitScreen(
+                    res.width,
+                    res.height,
+                    renderer.width,
+                    renderer.height
+                )
 
-                val rootView = (context as Activity).window.decorView
-                ViewCompat.getRootWindowInsets(rootView)?.let { insets ->
-                    val systemInsets = insets.getInsets(WindowInsetsCompat.Type.systemGestures())
-                    height -= systemInsets.top + systemInsets.bottom // Remove notch & navigation bar
-                }
-
-                screenSize = Size(width, height)
-
-                val (mWidth, mHeight) = resizeToFitScreen(res.width, res.height, width, height)
-
-                renderer.resize(res.width, res.height, mHeight * 2, mWidth * 2)
-                Log.e(TAG, "startCamera: ${preview.resolutionInfo!!.resolution}")
+                renderer.resize(res.width, res.height, renderer.width, renderer.height)
+                Log.e(
+                    TAG,
+                    "startCamera: ${preview.resolutionInfo!!.resolution} ${renderer.width} ${renderer.height}  ${mWidth * 2} ${mHeight * 2}"
+                )
 
 
                 request.provideSurface(surface, ContextCompat.getMainExecutor(this)) { _ ->
@@ -460,36 +428,50 @@ class MainActivity : AppCompatActivity() {
         }
 
         facemesh!!.setResultListener { faceMeshResult ->
-            if (glSurface.renderMode != GLSurfaceView.RENDERMODE_WHEN_DIRTY)
-                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-            Log.e(
-                TAG,
-                "setupStreamingModePipeline: ${faceMeshResult!!.multiFaceLandmarks()!!.size}"
-            )
-            val facelandmark = faceMeshResult.multiFaceLandmarks()
-            if (facelandmark.size > 0) {
-                val x = facelandmark[0].landmarkOrBuilderList[0].x
-                val y = facelandmark[0].landmarkOrBuilderList[0].y
-                val (x0, y0) = normalizeTouch(
-                    x * renderer.width,
-                    y * renderer.height,
-                    renderer.width.toFloat(),
-                    renderer.height.toFloat()
-                )
-                renderer.setPosBULDGE(x0 - 0.06f, y0)
+            when (renderer.filterTypes) {
+                FilterTypes.BULGE -> {
+                    if (faceMeshResult.multiFaceLandmarks().size > 0) {
+                        val x0 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[0].x
+                        val y0 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[0].y
+
+                        val x152 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[152].x
+                        val y152 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[152].y
+
+// Calculate Euclidean distance
+                        val faceScale =
+                            (sqrt(((x152 - x0) * (x152 - x0) + (y152 - y0) * (y152 - y0)).toDouble())) * 2
+
+//                        println("Face Scale: $faceScale")
+
+
+                        val (newX, newY) = normalizeTouch(
+                            x0 * renderer.width,
+                            y0 * renderer.height,
+                            renderer.width.toFloat(),
+                            renderer.height.toFloat()
+                        )
+                        renderer.setPosBULDGE(newX, newY)
+                        renderer.setPosSCALE(faceScale.toFloat())
+                    }
+                }
+
+                FilterTypes.DEBUG -> {
+                    renderer.faceMeshResult = faceMeshResult
+                }
+
+                else -> {return@setResultListener}
             }
+
             glSurface.requestRender()
         }
 
         //face mesh creates new context on the same thread
         val core = EglCore(EGL14.eglGetCurrentContext(), EglCore.FLAG_TRY_GLES3)
-        val bitmap = BitmapFactory.decodeStream(context.assets.open("linus.jpg"))
+
         var temp: AppTextureFrame? = null
         CoroutineScope(Dispatchers.Default).launch {
 
             renderer.readCallback = { byte, w, h ->
-//                val w=bitmap.width
-//                val h=bitmap.height
                 if (mOffscreenSurface == null) {
                     executor.execute {
                         mOffscreenSurface = OffscreenSurface(core, w, h)
@@ -500,7 +482,6 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val frameTimeNanos = System.nanoTime()
-//                val latch = CountDownLatch(1)
                 executor.execute {
                     glRecord.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
                     if (renderer.buffer != null) {
@@ -511,23 +492,19 @@ class MainActivity : AppCompatActivity() {
                             h
                         )
                     }
-//                    else
-//                        glRecord.onDrawForRecordBitmap(glRecord.recordTexture,bitmap)
                     temp?.timestamp = frameTimeNanos
                     facemesh!!.send(temp)
                     mOffscreenSurface!!.swapBuffers()
-                    if (isRecord)
-                        mOffscreenSurface!!.saveFrame(
-                            File(
-                                Environment.getExternalStoragePublicDirectory(
-                                    Environment.DIRECTORY_DOWNLOADS
-                                ), "test $frameTimeNanos .png"
-                            )
-                        )
+//                    if (isRecord)
+//                        mOffscreenSurface!!.saveFrame(
+//                            File(
+//                                Environment.getExternalStoragePublicDirectory(
+//                                    Environment.DIRECTORY_DOWNLOADS
+//                                ), "test $frameTimeNanos ${mOffscreenSurface!!.width}X${mOffscreenSurface!!.height} .png"
+//                            )
+//                        )
 
-//                    latch.countDown()
                 }
-//                latch.await()
             }
         }
     }

@@ -163,18 +163,19 @@ class GLRecord(private val context: Context) {
             2 * FLOAT_SIZE_BYTES
         )
         GLES31.glEnableVertexAttribArray(texturePositionHandle2DRec)
-        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
-        GLES31.glBindVertexArray(0)
 
-        GLES31.glBindFramebuffer(GLES31.GL_FRAMEBUFFER, saveFramebuffer)
-        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, saveTexName)
         //-----------------------------------------------------------------------
 
-        GLES31.glViewport(0, 0, width, height)
+//        GLES31.glViewport(0, 0, width, height)
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
         aspectMatrix2DRec = scaleMatrix
         GLES31.glUniformMatrix4fv(matrixHandle2DRec, 1, false, aspectMatrix2DRec, 0)
+
+        GLES31.glBindFramebuffer(GLES31.GL_FRAMEBUFFER, saveFramebuffer)
+        GLES31.glBindTexture(GLES31.GL_TEXTURE_2D, saveTexName)
+        GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
+        GLES31.glBindVertexArray(0)
     }
 
 

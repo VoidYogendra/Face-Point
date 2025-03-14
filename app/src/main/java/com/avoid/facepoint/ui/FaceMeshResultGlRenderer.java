@@ -70,6 +70,10 @@ public class FaceMeshResultGlRenderer implements ResultGlRenderer<FaceMeshResult
     return shader;
   }
 
+  public FaceMeshResultGlRenderer(){
+    setupRendering();
+  }
+
   @Override
   public void setupRendering() {
     program = GLES20.glCreateProgram();

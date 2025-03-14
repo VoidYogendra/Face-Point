@@ -4,6 +4,7 @@ enum class FilterTypes {
     DEFAULT{},
     LUT{},
     INVERSE{},
-    BULGE{}
+    BULGE{},
+    DEBUG{}
 //    FILTER3D{}
 }
