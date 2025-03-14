@@ -9,6 +9,8 @@ import android.opengl.GLES31
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
+import android.util.Size
+import android.util.SizeF
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
 import com.avoid.facepoint.ui.FaceMeshResultGlRenderer
@@ -104,10 +106,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     val glRecord = GLRecord(context)
 
-    var faceMeshResult: FaceMeshResult?=null
-    var faceGLRender:FaceMeshResultGlRenderer?=null
-    var matrix=MatrixCalc()
-    var maskMatrix=FloatArray(16)
+    var faceMeshResult: FaceMeshResult? = null
+    var faceGLRender: FaceMeshResultGlRenderer? = null
+    var matrix = MatrixCalc()
+    var maskMatrix = FloatArray(16)
 
     private fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
@@ -137,7 +139,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         eglContext = EGL14.eglGetCurrentContext()
 
-        faceGLRender=FaceMeshResultGlRenderer()
+        faceGLRender = FaceMeshResultGlRenderer()
     }
 
     override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
@@ -146,9 +148,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glViewport(0, 0, width, height)
 
         onSurfaceCreated2D()
-        matrix.surface(width,height)
-        matrix.frame(width,height)
-        maskMatrix=matrix.doIT(maskMatrix)
+        matrix.surface(width, height)
+        matrix.frame(width, height)
+        maskMatrix = matrix.doIT(maskMatrix)
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
@@ -237,53 +239,69 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         if (framebufferName != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onDrawToFbo(textures[0])
-            when(filterTypes){
-                FilterTypes.BULGE -> {
-                    if (buffer != null) {
-                        GLES31.glFinish()
-                        GLES31.glReadPixels(
-                            0, 0, this.width, this.height,
-                            GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
-                        )
-                        readCallback?.invoke(buffer!!, this.width, this.height)
-                    }
-                }
-                FilterTypes.DEBUG->{
-                    if (buffer != null) {
-                        GLES31.glFinish()
-                        GLES31.glReadPixels(
-                            0, 0, this.width, this.height,
-                            GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
-                        )
-                        readCallback?.invoke(buffer!!, this.width, this.height)
-                    }
-                    if(faceMeshResult!=null){
-                        faceGLRender!!.renderResult(faceMeshResult,maskMatrix)
-                    }
-                }
-                else->{}
-            }
+            sendToInference()
         }
         if (glRecord.framebufferRecord != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glRecord.framebufferRecord)
-            when (filterTypes) {
-
-                FilterTypes.BULGE -> {
-                    drawBULDGE(textureID2D)
-                }
-
-                else -> {
-                    onDraw(textureID2D)
-                }
-            }
+            drawFBO()
         }
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
         glRecord.onDrawForRecord(glRecord.recordTexture)
 
+        drawFBO()
+    }
+
+    private fun sendToInference(){
+        when (filterTypes) {
+            FilterTypes.BULGE -> {
+                if (buffer != null) {
+                    GLES31.glFinish()
+                    GLES31.glReadPixels(
+                        0, 0, this.width, this.height,
+                        GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
+                    )
+                    readCallback?.invoke(buffer!!, this.width, this.height)
+                }
+            }
+
+            FilterTypes.BULGE_DOUBLE -> {
+                if (buffer != null) {
+                    GLES31.glFinish()
+                    GLES31.glReadPixels(
+                        0, 0, this.width, this.height,
+                        GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
+                    )
+                    readCallback?.invoke(buffer!!, this.width, this.height)
+                }
+            }
+
+            FilterTypes.DEBUG -> {
+                if (buffer != null) {
+                    GLES31.glFinish()
+                    GLES31.glReadPixels(
+                        0, 0, this.width, this.height,
+                        GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
+                    )
+                    readCallback?.invoke(buffer!!, this.width, this.height)
+                }
+                if (faceMeshResult != null) {
+                    faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
+                }
+            }
+
+            else -> {}
+        }
+    }
+
+    private fun drawFBO() {
         when (filterTypes) {
 
             FilterTypes.BULGE -> {
                 drawBULDGE(textureID2D)
+            }
+
+            FilterTypes.BULGE_DOUBLE -> {
+                drawBULDGEDouble(textureID2D)
             }
 
             else -> {
@@ -291,6 +309,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             }
         }
     }
+
 
     fun onDrawToFbo(texID: Int) {
         gl.glUseProgram(programOES)
@@ -315,7 +334,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             FilterTypes.BULGE -> {
                 drawDefault(texID)
             }
-            else-> drawDefault(texID)
+
+            else -> drawDefault(texID)
         }
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
@@ -577,13 +597,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
-    private var centerHandle = 0
-    private var radiusHandle = 0
-    private var scaleHandle = 0
-    private var scale = 0.5f
-    private var x = 0.5f
-    private var y = 0.5f
-
     fun createDefault2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
         fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
@@ -601,6 +614,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
 
+
+    private var centerHandle = 0
+    private var radiusHandle = 0
+    private var scaleHandle = 0
+    private var scale = 0.5f
+    private var x = 0.5f
+    private var y = 0.5f
     fun create2DBULDGE() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
         fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "buldge_frag.glsl")
@@ -625,8 +645,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         this.x = x
         this.y = y
     }
+
     fun setPosSCALE(scale: Float) {
-        this.scale=scale
+        this.scale = scale
     }
 
     private fun drawBULDGE(texID: Int) {
@@ -643,6 +664,73 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glUniform2f(centerHandle, x, y);
         gl.glUniform1f(radiusHandle, scale);
         gl.glUniform1f(scaleHandle, 0.5f);
+
+        gl.glUniform1i(textureHandle2D, 0)
+
+        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+        gl.glBindVertexArray(0)
+    }
+
+    /**----------------------------------------------------------------------------------------------------------------------------------**/
+
+
+    /**----------------------------------------------------------------------------------------------------------------------------------**/
+
+
+    private var centerHandle2bulge1 = 0
+    private var centerHandle2bulge2 = 0
+    private var radiusHandle2bulge = 0
+    private var scaleHandle2bulge = 0
+    private var scale2bulge = 0.5f
+    private var center1 = SizeF(0.5f, 0.5f)
+    private var center2 = SizeF(0.5f, 0.5f)
+    fun create2DBULDGEDouble() {
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "two_buldge.glsl")
+        program2D = gl.glCreateProgram()
+        gl.glAttachShader(program2D, vertexShader2D)
+        gl.glAttachShader(program2D, fragmentShader)
+        gl.glLinkProgram(program2D)
+        gl.glUseProgram(program2D) //use it in Codec
+
+        positionHandle2D = gl.glGetAttribLocation(program2D, "aPosition")
+        texturePositionHandle2D = gl.glGetAttribLocation(program2D, "aTexPosition")
+        textureHandle2D = gl.glGetUniformLocation(program2D, "uTexture")
+        matrixHandle2D = gl.glGetUniformLocation(program2D, "u_Matrix")
+
+        centerHandle2bulge1 = gl.glGetUniformLocation(program2D, "center1")
+        centerHandle2bulge2 = gl.glGetUniformLocation(program2D, "center2")
+        radiusHandle2bulge = gl.glGetUniformLocation(program2D, "radius")
+        scaleHandle2bulge = gl.glGetUniformLocation(program2D, "scale")
+        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
+    }
+
+    fun setPosBULDGEDouble(x1: Float, y1: Float, x2: Float, y2: Float) {
+        center1 = SizeF(x1, y1)
+        center2 = SizeF(x2, y2)
+    }
+
+    fun setPosSCALEDouble(scale: Float) {
+        this.scale2bulge = scale
+    }
+
+    private fun drawBULDGEDouble(texID: Int) {
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
+        gl.glUseProgram(program2D)
+
+        gl.glBindVertexArray(vao2D[0])
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo2D[0])
+
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texID)
+
+        gl.glUniform2f(centerHandle2bulge1, center1.width, center1.height)
+        gl.glUniform2f(centerHandle2bulge2, center2.width, center2.height)
+        gl.glUniform1f(radiusHandle2bulge, scale)
+        gl.glUniform1f(scaleHandle2bulge, 0.5f);
 
         gl.glUniform1i(textureHandle2D, 0)
 

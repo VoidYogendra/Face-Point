@@ -98,6 +98,7 @@ class MainActivity : AppCompatActivity() {
 
         val dataSet = arrayOf(
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEFAULT, renderer, null),
+            FilterItem(R.drawable.ic_launcher_background, FilterTypes.BULGE_DOUBLE, renderer, null),
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.BULGE, renderer, null),
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEBUG, renderer, null),
             FilterItem(R.drawable.ic_launcher_background, FilterTypes.INVERSE, renderer, null),
@@ -191,6 +192,15 @@ class MainActivity : AppCompatActivity() {
 
                                 render.createExternalTexture()
                                 render.create2DBULDGE()
+                            }
+
+                            FilterTypes.BULGE_DOUBLE -> {
+                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                                render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
+
+                                render.createExternalTexture()
+                                render.create2DBULDGEDouble()
                             }
 
                             FilterTypes.DEBUG -> {
@@ -455,11 +465,53 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                FilterTypes.BULGE_DOUBLE -> {
+                    if (faceMeshResult.multiFaceLandmarks().size > 0) {
+                        val x463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].x
+                        val y463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].y
+
+                        val x263 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[263].x
+                        val y263 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[263].y
+
+                        //468 right 473 left center
+                        val x468 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[468].x
+                        val y468 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[468].y
+
+                        val x473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].x
+                        val y473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].y
+
+                        val faceScale =
+                            (sqrt(((x263 - x463) * (x263 - x463) + (y263 - y463) * (y263 - y463)).toDouble())) *2
+
+//                        println("Face Scale: $faceScale")
+
+
+                        val (rX, rY) = normalizeTouch(
+                            x468 * renderer.width,
+                            y468 * renderer.height,
+                            renderer.width.toFloat(),
+                            renderer.height.toFloat()
+                        )
+                        val (lX, lY) = normalizeTouch(
+                            x473 * renderer.width,
+                            y473 * renderer.height,
+                            renderer.width.toFloat(),
+                            renderer.height.toFloat()
+                        )
+
+                        renderer.setPosBULDGEDouble(rX, rY, lX, lY)
+                        renderer.setPosSCALEDouble(faceScale.toFloat())
+                    }
+                }
+
+
                 FilterTypes.DEBUG -> {
                     renderer.faceMeshResult = faceMeshResult
                 }
 
-                else -> {return@setResultListener}
+                else -> {
+                    return@setResultListener
+                }
             }
 
             glSurface.requestRender()
