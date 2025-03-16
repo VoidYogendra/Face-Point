@@ -10,6 +10,6 @@
     android:contentDescription="@string/app_name"
     app:shapeAppearanceOverlay="@style/Circular"
     android:src="@drawable/ic_launcher_background"
-    android:layout_width="90dp"
-    android:layout_height="90dp"/>
+    android:layout_width="100dp"
+    android:layout_height="100dp"/>
 </LinearLayout>

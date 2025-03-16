@@ -47,8 +47,11 @@ class Encoder {
 //            val bit = BitmapFactory.decodeStream(context.assets.open("frames/frame_0.jpg"))
 //            mWidth=bit.width
 //            mHeight=bit.height
-
-            prepareEncoder(30,1200,1600,EGL14.EGL_NO_CONTEXT,3)
+            val outputPath = File(
+                OUTPUT_DIR,
+                "test." + 512 + "x" + 512 + ".mp4"
+            ).toString()
+            prepareEncoder(30,1200,1600,EGL14.EGL_NO_CONTEXT,3,outputPath)
             handler.post {
                 mInputSurface!!.makeCurrent()
             }
@@ -105,7 +108,7 @@ class Encoder {
     }
 
 
-    fun prepareEncoder(frameRate:Int, width: Int, height: Int, eglContext: EGLContext,glVersion:Int) {
+    fun prepareEncoder(frameRate:Int, width: Int, height: Int, eglContext: EGLContext,glVersion:Int,outputPath:String) {
         mWidth=width
         mHeight=height
 
@@ -133,11 +136,6 @@ class Encoder {
         mInputSurface = CodecInputSurface(mEncoder!!.createInputSurface(), eglContext,glVersion)
         mEncoder!!.start()
 
-
-        val outputPath = File(
-            OUTPUT_DIR,
-            "test." + width + "x" + height + ".mp4"
-        ).toString()
         Log.d(TAG, "output file is $outputPath")
 
 

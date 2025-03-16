@@ -2,19 +2,22 @@ package com.avoid.facepoint.render
 
 import android.content.Context
 import android.content.res.AssetManager
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.EGL14
 import android.opengl.EGLContext
+import android.opengl.GLES20
 import android.opengl.GLES31
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
-import android.util.Size
 import android.util.SizeF
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
-import com.avoid.facepoint.ui.FaceMeshResultGlRenderer
 import com.google.mediapipe.solutions.facemesh.FaceMeshResult
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -359,6 +362,43 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
     }
+
+    fun saveFrame(file: File,width: Int,height: Int) {
+        // glReadPixels fills in a "direct" ByteBuffer with what is essentially big-endian RGBA
+        // data (i.e. a byte of red, followed by a byte of green...).  While the Bitmap
+        // constructor that takes an int[] wants little-endian ARGB (blue/red swapped), the
+        // Bitmap "copy pixels" method wants the same format GL provides.
+        //
+        // Ideally we'd have some way to re-use the ByteBuffer, especially if we're calling
+        // here often.
+        //
+        // Making this even more interesting is the upside-down nature of GL, which means
+        // our output will look upside down relative to what appears on screen if the
+        // typical GL conventions are used.
+        val filename = file.toString()
+        val buf = ByteBuffer.allocateDirect(width * height * 4)
+        buf.order(ByteOrder.LITTLE_ENDIAN)
+        GLES20.glReadPixels(
+            0, 0, width, height,
+            GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buf
+        )
+//        checkGlError("glReadPixels")
+        buf.rewind()
+
+        var bos: BufferedOutputStream? = null
+        try {
+            bos = BufferedOutputStream(FileOutputStream(filename))
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            bmp.copyPixelsFromBuffer(buf)
+            bmp.compress(Bitmap.CompressFormat.PNG, 90, bos)
+            bmp.recycle()
+        } finally {
+            bos?.close()
+        }
+        Log.d("IDK GG", "Saved " + width + "x" + height + " frame as '" + filename + "'")
+    }
+
+
 
     /**
      * Shader Crash On ->

@@ -22,12 +22,10 @@ import android.view.Surface
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.result.ActivityResult
-import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraProvider
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -51,8 +49,13 @@ import com.google.mediapipe.solutions.facemesh.FaceMesh
 import com.google.mediapipe.solutions.facemesh.FaceMeshOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -179,37 +182,37 @@ class MainActivity : AppCompatActivity() {
 
 
         val dataSet = arrayOf(
-            FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEFAULT, renderer, null),
-            FilterItem(R.drawable.ic_launcher_background, FilterTypes.BULGE_DOUBLE, renderer, null),
-            FilterItem(R.drawable.ic_launcher_background, FilterTypes.BULGE, renderer, null),
-            FilterItem(R.drawable.ic_launcher_background, FilterTypes.DEBUG, renderer, null),
-            FilterItem(R.drawable.ic_launcher_background, FilterTypes.INVERSE, renderer, null),
+            FilterItem(R.drawable.a, FilterTypes.DEFAULT, renderer, null),
+            FilterItem(R.drawable.b, FilterTypes.BULGE_DOUBLE, renderer, null),
+            FilterItem(R.drawable.c, FilterTypes.BULGE, renderer, null),
+            FilterItem(R.drawable.d, FilterTypes.DEBUG, renderer, null),
+            FilterItem(R.drawable.e, FilterTypes.INVERSE, renderer, null),
             FilterItem(
-                R.drawable.ic_launcher_background,
+                R.drawable.f,
                 FilterTypes.LUT,
                 renderer,
                 "lut/b&w.cube"
             ),
             FilterItem(
-                R.drawable.ic_launcher_background,
+                R.drawable.g,
                 FilterTypes.LUT,
                 renderer,
                 "lut/CineStill.cube"
             ),
             FilterItem(
-                R.drawable.ic_launcher_background,
+                R.drawable.h,
                 FilterTypes.LUT,
                 renderer,
                 "lut/Sunset.cube"
             ),
             FilterItem(
-                R.drawable.ic_launcher_background,
+                R.drawable.i,
                 FilterTypes.LUT,
                 renderer,
                 "lut/Sunset2.cube"
             ),
             FilterItem(
-                R.drawable.ic_launcher_background,
+                R.drawable.j,
                 FilterTypes.LUT,
                 renderer,
                 "lut/BW1.cube"
@@ -306,20 +309,40 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        var isLongPress = false
+        var longPressJob: Job? = null
+
         mainActivityBinding.BtnRec.setOnTouchListener { view, motionEvent ->
             if (motionEvent.action == MotionEvent.ACTION_DOWN) {
                 val btn = view as ImageButton
-                btn.setColorFilter(Color.RED)
-                isRecord = true
+                btn.setColorFilter(Color.YELLOW)
+
+                longPressJob = CoroutineScope(Dispatchers.Main).launch {
+                    delay(500) // 500ms delay for long press
+                    btn.setColorFilter(Color.RED)
+                    isLongPress = true
+                    isRecord = true // Start recording
+                }
             } else if (motionEvent.action == MotionEvent.ACTION_UP) {
                 val btn = view as ImageButton
                 btn.setColorFilter(Color.WHITE)
-                isRecord = false
+                if (isLongPress) {
+                    isRecord = false // Stop recording
+                } else {
+                    takePicture() // Call the function to take a picture
+                }
+
+                // Cancel the coroutine if the press was short
+                longPressJob?.cancel()
+                isLongPress = false
             }
             false
         }
         permissions()
-        isGrantedCam=ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        isGrantedCam = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
         CoroutineScope(Dispatchers.Default).launch {
             while (!isGrantedCam || !isGrantedStorage) {
                 delay(0)
@@ -342,10 +365,25 @@ class MainActivity : AppCompatActivity() {
                 val frameTimeNanos = System.nanoTime()
                 if (isRecord) {
                     if (!record) {
+
+                        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+
+
+                        // Create the filename with the timestamp
+                        val fileName = String.format(
+                            Locale.getDefault(),
+                            "%dX%d_%s.mp4",
+                            renderer.width,
+                            renderer.height,
+                            timeStamp
+                        )
+                        val outputPath = File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            fileName
+                        ).toString()
                         encoder.prepareEncoder(
                             fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
-                            GL_VERSION
-                        )
+                            GL_VERSION,outputPath)
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
@@ -384,6 +422,56 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    }
+
+    private val executorImage: ExecutorService = Executors.newSingleThreadExecutor()
+    private var mOffscreenSurfaceImage: OffscreenSurface? = null
+    var glSaveImage: GLRecord? = null
+    private fun takePicture() {
+        mainActivityBinding.BtnRec.isEnabled=false
+        val width = renderer.cameraHeight
+        val height = renderer.cameraWidth
+        if (glSaveImage == null) {
+            glSaveImage = GLRecord(context)
+            mOffscreenSurfaceImage =
+                OffscreenSurface(
+                    EglCore(renderer.eglContext, EglCore.FLAG_TRY_GLES3),
+                    width,
+                    height
+                )
+            executorImage.execute {
+                mOffscreenSurfaceImage!!.makeCurrent()
+                glSaveImage!!.initForRecord(width, height)
+            }
+        }
+        executorImage.execute {
+            glSaveImage!!.rotate(true)
+            glSaveImage!!.onDrawForRecord(renderer.glRecord.recordTexture)
+            val timeStamp: String =
+                SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+
+
+            // Create the filename with the timestamp
+            val fileName: String = java.lang.String.format(
+                Locale.getDefault(),
+                "%dX%d_%s.png",
+                renderer.width,
+                renderer.height,
+                timeStamp
+            )
+
+            renderer.saveFrame(
+                File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    fileName
+                ), width, height
+            )
+            mOffscreenSurfaceImage!!.swapBuffers()
+            runOnUiThread {
+                mainActivityBinding.BtnRec.isEnabled=true
+                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun startCamera() {
@@ -594,7 +682,7 @@ class MainActivity : AppCompatActivity() {
                     return@setResultListener
                 }
             }
-
+            if (!isRecord)
             glSurface.requestRender()
         }
 
@@ -660,7 +748,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (!isCameraInitialized && cameraProvider != null) {
             startCamera()
+            if(mainActivityBinding.RvFilterList.adapter!=null)
+                mainActivityBinding.RvFilterList.scrollToPosition(0)
         }
+
     }
 
     private fun checkPermission(permission: String, launcher: ActivityResultLauncher<String>?) {
