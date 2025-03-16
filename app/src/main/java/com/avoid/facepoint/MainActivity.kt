@@ -3,21 +3,31 @@ package com.avoid.facepoint
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.opengl.EGL14
 import android.opengl.GLSurfaceView
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
+import android.provider.Settings
 import android.util.Log
 import android.util.Range
 import android.view.MotionEvent
 import android.view.Surface
 import android.widget.ImageButton
 import android.widget.Toast
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraProvider
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -57,7 +67,38 @@ class MainActivity : AppCompatActivity() {
     private var isRecord = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
+    private var isGrantedCam = false
+    private var isGrantedStorage = false
+    private var cameraProvider: ProcessCameraProvider? = null
+
+
+    private val handlerThread = HandlerThread("TEST").apply { start() }
+    private val handler = Handler(handlerThread.looper)
+    private val resolutionSelector = ResolutionSelector.Builder()
+        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY) // Prefer 16:9, but fallback if needed
+        .build()
+
+    private val preview = Preview.Builder()
+        .setResolutionSelector(resolutionSelector)
+        .setTargetRotation(rotation)
+        .setTargetFrameRate(Range(30, 60))
+        .build()
+
+
     private val requestCameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            isGrantedCam = true
+            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
+        } else {
+            // Permission denied
+            isGrantedCam = false
+            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val requestAudioPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
@@ -65,19 +106,60 @@ class MainActivity : AppCompatActivity() {
         } else {
             // Permission denied
             Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
-            finish()
         }
     }
-    private val requestStoragePermissionLauncherBeforeR = registerForActivityResult(
+
+    private val requestCameraPermissionLauncherStorageBeforeR = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            isGrantedStorage = true
+            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
+        } else {
+            // Permission denied
+            isGrantedStorage = false
+            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private val requestCameraPermissionLauncherStorage = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
             Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
         } else {
             // Permission denied
-            Toast.makeText(this, "Not Granted", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
+            try {
+                val intent = Intent()
+                intent.setAction(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                val uri = Uri.fromParts("package", this.packageName, null)
+                intent.setData(uri)
+                requestPermission.launch(intent)
+            } catch (e: Exception) {
+                val intent = Intent()
+                intent.setAction(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                requestPermission.launch(intent)
+            }
         }
     }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private val requestPermission = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _: ActivityResult ->
+        if (Environment.isExternalStorageManager()) {
+            //Manage External Storage Permissions Granted
+            isGrantedStorage = true
+            Log.d(TAG, "onActivityResult: Manage External Storage Permissions Granted");
+        } else {
+            isGrantedStorage = false
+            Toast.makeText(this@MainActivity, "Storage Permissions Denied", Toast.LENGTH_SHORT)
+                .show();
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -224,8 +306,6 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-
-
         mainActivityBinding.BtnRec.setOnTouchListener { view, motionEvent ->
             if (motionEvent.action == MotionEvent.ACTION_DOWN) {
                 val btn = view as ImageButton
@@ -239,81 +319,19 @@ class MainActivity : AppCompatActivity() {
             false
         }
         permissions()
-        startCamera()
-    }
-
-    private val handlerThread = HandlerThread("TEST").apply { start() }
-    private val handler = Handler(handlerThread.looper)
-
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        val cameraProvider = cameraProviderFuture.get()
-        cameraProviderFuture.addListener({
-
-            val resolutionSelector = ResolutionSelector.Builder()
-                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY) // Prefer 16:9, but fallback if needed
-                .build()
-
-            val preview = Preview.Builder()
-                .setResolutionSelector(resolutionSelector)
-                .setTargetRotation(rotation)
-                .setTargetFrameRate(Range(30, 60))
-                .build()
-
-
-            val surfaceProvider = Preview.SurfaceProvider { request ->
-                while (renderer.getSurfaceTexture() == null) {
-                    continue
-                }
-                val surfaceTexture = renderer.getSurfaceTexture()
-                val res = preview.resolutionInfo!!.resolution
-                val surface = Surface(surfaceTexture)
-
-                val (mWidth, mHeight) = resizeToFitScreen(
-                    res.width,
-                    res.height,
-                    renderer.width,
-                    renderer.height
-                )
-
-                renderer.resize(res.width, res.height, renderer.width, renderer.height)
-                Log.e(
-                    TAG,
-                    "startCamera: ${preview.resolutionInfo!!.resolution} ${renderer.width} ${renderer.height}  ${mWidth * 2} ${mHeight * 2}"
-                )
-
-
-                request.provideSurface(surface, ContextCompat.getMainExecutor(this)) { _ ->
-                    // Handle resource release
-                }
+        isGrantedCam=ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        CoroutineScope(Dispatchers.Default).launch {
+            while (!isGrantedCam || !isGrantedStorage) {
+                delay(0)
+                Log.e(TAG, "init: XXXXXXXXX $isGrantedCam $isGrantedStorage")
             }
-            preview.surfaceProvider = surfaceProvider
-
-
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(this, cameraSelector, preview)
-            mainActivityBinding.BtnSwitchCamera.setOnClickListener {
-                cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-                    renderer.rotate(true)
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    renderer.rotate(false)
-                    CameraSelector.DEFAULT_BACK_CAMERA
-                }
-
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+            runOnUiThread {
+                startCamera()
             }
-        }, ContextCompat.getMainExecutor(this))
-
+        }
 
         val encoder = Encoder()
         var record = false
-
-        /**
-         * My FBO Approach Does not Work But this might
-         * */
-// TODO: ("https://github.com/MasayukiSuda/GPUVideo-android/blob/ae37d7a2e33e9f8e390752b8db6b9edbced0544f/gpuv/src/main/java/com/daasuu/gpuv/egl/GlFramebufferObject.java#L83")
 
         CoroutineScope(Dispatchers.IO).launch {
             val fps = 60
@@ -368,17 +386,84 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private fun permissions() {
-        checkPermission(Manifest.permission.CAMERA, requestCameraPermissionLauncher)
+    private fun startCamera() {
+        if (isCameraInitialized) return
+        isCameraInitialized = true
+        Log.e(TAG, "startCamera: XXXXXXXXX")
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        cameraProvider = cameraProviderFuture.get()
+        cameraProviderFuture.addListener({
+            val surfaceProvider = Preview.SurfaceProvider { request ->
+                while (renderer.getSurfaceTexture() == null) {
+                    continue
+                }
+                val surfaceTexture = renderer.getSurfaceTexture()
+                val res = preview.resolutionInfo!!.resolution
+                val surface = Surface(surfaceTexture)
 
-        checkPermission(
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            requestStoragePermissionLauncherBeforeR
-        )
-        checkPermission(
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            requestStoragePermissionLauncherBeforeR
-        )
+                val (mWidth, mHeight) = resizeToFitScreen(
+                    res.width,
+                    res.height,
+                    renderer.width,
+                    renderer.height
+                )
+
+                renderer.resize(res.width, res.height, renderer.width, renderer.height)
+                Log.e(
+                    TAG,
+                    "startCamera: ${preview.resolutionInfo!!.resolution} ${renderer.width} ${renderer.height}  ${mWidth * 2} ${mHeight * 2}"
+                )
+
+
+                request.provideSurface(surface, ContextCompat.getMainExecutor(this)) { _ ->
+                    // Handle resource release
+                }
+            }
+            preview.surfaceProvider = surfaceProvider
+
+
+            cameraProvider!!.unbindAll()
+            cameraProvider!!.bindToLifecycle(this, cameraSelector, preview)
+            mainActivityBinding.BtnSwitchCamera.setOnClickListener {
+                cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                    renderer.rotate(true)
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    renderer.rotate(false)
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
+
+                cameraProvider!!.unbindAll()
+                cameraProvider!!.bindToLifecycle(this, cameraSelector, preview)
+            }
+        }, ContextCompat.getMainExecutor(this))
+
+    }
+
+    private fun permissions() {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            checkPermission(
+                Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                requestCameraPermissionLauncherStorage
+            )
+        else {
+            checkPermission(
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                requestCameraPermissionLauncherStorageBeforeR
+            )
+            checkPermission(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                requestCameraPermissionLauncherStorageBeforeR
+            )
+        }
+        CoroutineScope(Dispatchers.Default).launch {
+            while (!isGrantedStorage)
+                delay(0)
+
+            checkPermission(Manifest.permission.CAMERA, requestCameraPermissionLauncher)
+            checkPermission(Manifest.permission.RECORD_AUDIO, requestAudioPermission)
+        }
     }
 
     private fun resizeToFitScreen(
@@ -408,10 +493,6 @@ class MainActivity : AppCompatActivity() {
         val normalizedX = touchX / screenWidth // Now between 0 and 1
         val normalizedY = 1f - (touchY / screenHeight) // Flip Y but keep in 0-1 range
         return Pair(normalizedX, normalizedY)
-    }
-
-    private fun checkPermission(permission: String, launcher: ActivityResultLauncher<String>) {
-        launcher.launch(permission)
     }
 
     var facemesh: FaceMesh? = null
@@ -481,7 +562,7 @@ class MainActivity : AppCompatActivity() {
                         val y473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].y
 
                         val faceScale =
-                            (sqrt(((x263 - x463) * (x263 - x463) + (y263 - y463) * (y263 - y463)).toDouble())) *2
+                            (sqrt(((x263 - x463) * (x263 - x463) + (y263 - y463) * (y263 - y463)).toDouble())) * 2
 
 //                        println("Face Scale: $faceScale")
 
@@ -565,6 +646,47 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         destroy()
     }
+
+    private var isCameraInitialized = false
+    override fun onPause() {
+        super.onPause()
+        if (cameraProvider != null) {
+            cameraProvider!!.unbindAll()
+            isCameraInitialized = false
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!isCameraInitialized && cameraProvider != null) {
+            startCamera()
+        }
+    }
+
+    private fun checkPermission(permission: String, launcher: ActivityResultLauncher<String>?) {
+        when (permission) {
+            Manifest.permission.MANAGE_EXTERNAL_STORAGE -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val granted = Environment.isExternalStorageManager()
+                    if (!granted) {
+                        launcher!!.launch(permission)
+                    } else
+                        isGrantedStorage = true
+                }
+            }
+
+            Manifest.permission.RECORD_AUDIO -> {}
+            else -> {
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        permission
+                    ) != PackageManager.PERMISSION_GRANTED
+                )
+                    launcher!!.launch(permission)
+            }
+        }
+    }
+
 
     companion object {
         internal const val TAG = "MainActivity"
