@@ -36,6 +36,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private external fun loadLUT(assetManager: AssetManager, mFile: String): Boolean
         private external fun createTextureLUT2D(textureID: Int, lutID: Int): Int
         private external fun createTextureLUT(textureID: Int, lutID: Int)
+        external fun makeKHR(textureID: Int)
+        external fun useKHR(textureID: Int)
         const val GL_TEXTURE_EXTERNAL_OES: Int = 36197
     }
 
@@ -108,6 +110,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var aspectMatrix2D = FloatArray(16)
 
     val glRecord = GLRecord(context)
+    val glToKHR = GLRecord(context)
 
     var faceMeshResult: FaceMeshResult? = null
     var faceGLRender: FaceMeshResultGlRenderer? = null
@@ -187,6 +190,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
 
         glRecord.initForRecord(width, height)
+        glToKHR.initForKHR(width, height)
     }
 
     //    private var byteSize = 0
@@ -198,8 +202,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         onDrawCallback.add {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onSurfaceChanged(screenWidth, screenHeight)
-            buffer = ByteBuffer.allocateDirect(width * height * 4)
-                .order(ByteOrder.nativeOrder())
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
         }
 
@@ -229,8 +231,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
-    var buffer: ByteBuffer? = null
-    var readCallback: ((byte: ByteBuffer, width: Int, height: Int) -> Unit)? = null
+    //    var buffer: ByteBuffer? = null
+    var readCallback: ((width: Int, height: Int) -> Unit)? = null
 
     override fun onDrawFrame(p0: GL10?) {
         //so it does not render during new setup
@@ -242,8 +244,14 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         if (framebufferName != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onDrawToFbo(textures[0])
-            sendToInference()
         }
+        if (glToKHR.framebufferRecord != 0) {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
+            onDrawToFbo(textures[0])
+        }
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        glToKHR.onDrawForRecord(glToKHR.recordTexture)
+            sendToInference()
         if (glRecord.framebufferRecord != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glRecord.framebufferRecord)
             drawFBO()
@@ -254,39 +262,19 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         drawFBO()
     }
 
-    private fun sendToInference(){
+    private fun sendToInference() {
+        if (width <= 0) return
         when (filterTypes) {
             FilterTypes.BULGE -> {
-                if (buffer != null) {
-                    GLES31.glFinish()
-                    GLES31.glReadPixels(
-                        0, 0, this.width, this.height,
-                        GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
-                    )
-                    readCallback?.invoke(buffer!!, this.width, this.height)
-                }
+                readCallback?.invoke(this.width, this.height)
             }
 
             FilterTypes.BULGE_DOUBLE -> {
-                if (buffer != null) {
-                    GLES31.glFinish()
-                    GLES31.glReadPixels(
-                        0, 0, this.width, this.height,
-                        GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
-                    )
-                    readCallback?.invoke(buffer!!, this.width, this.height)
-                }
+                readCallback?.invoke(this.width, this.height)
             }
 
             FilterTypes.DEBUG -> {
-                if (buffer != null) {
-                    GLES31.glFinish()
-                    GLES31.glReadPixels(
-                        0, 0, this.width, this.height,
-                        GLES31.GL_RGBA, GLES31.GL_UNSIGNED_BYTE, buffer
-                    )
-                    readCallback?.invoke(buffer!!, this.width, this.height)
-                }
+                readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
                 }
@@ -363,7 +351,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindVertexArray(0)
     }
 
-    fun saveFrame(file: File,width: Int,height: Int) {
+    fun saveFrame(file: File, width: Int, height: Int) {
         // glReadPixels fills in a "direct" ByteBuffer with what is essentially big-endian RGBA
         // data (i.e. a byte of red, followed by a byte of green...).  While the Bitmap
         // constructor that takes an int[] wants little-endian ARGB (blue/red swapped), the
@@ -397,7 +385,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
         Log.d("IDK GG", "Saved " + width + "x" + height + " frame as '" + filename + "'")
     }
-
 
 
     /**

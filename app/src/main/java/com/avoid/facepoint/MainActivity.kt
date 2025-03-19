@@ -692,12 +692,12 @@ class MainActivity : AppCompatActivity() {
         var temp: AppTextureFrame? = null
         CoroutineScope(Dispatchers.Default).launch {
 
-            renderer.readCallback = { byte, w, h ->
+            renderer.readCallback = { w, h ->
                 if (mOffscreenSurface == null) {
                     executor.execute {
                         mOffscreenSurface = OffscreenSurface(core, w, h)
                         mOffscreenSurface!!.makeCurrent()
-                        glRecord.initForRecord(w, h)
+                        glRecord.initForUse(w, h)
                         temp = AppTextureFrame(glRecord.recordTexture, w, h)
                     }
                 }
@@ -705,14 +705,11 @@ class MainActivity : AppCompatActivity() {
                 val frameTimeNanos = System.nanoTime()
                 executor.execute {
                     glRecord.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
-                    if (renderer.buffer != null) {
-                        glRecord.onDrawForBuffer(
+
+                        glRecord.onDrawForKHR(
                             glRecord.recordTexture,
-                            byte,
-                            w,
-                            h
                         )
-                    }
+
                     temp?.timestamp = frameTimeNanos
                     facemesh!!.send(temp)
                     mOffscreenSurface!!.swapBuffers()
