@@ -241,17 +241,31 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 onDrawCallback.poll()?.run()
             }
         }
-        if (framebufferName != 0) {
-            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
-            onDrawToFbo(textures[0])
+        sendToInference(){
+            if (it){
+                if (glToKHR.framebufferRecord != 0) {
+                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
+                    onDrawToFbo(textures[0])
+                }
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+                glToKHR.onDrawForRecord(glToKHR.recordTexture)
+                gl.glFlush()
+                if (framebufferName != 0) {
+                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+                    onDrawToFbo(textures[0])
+
+                }
+            }
+            else{
+                if (framebufferName != 0) {
+                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+                    onDrawToFbo(textures[0])
+
+                }
+            }
         }
-        if (glToKHR.framebufferRecord != 0) {
-            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
-            onDrawToFbo(textures[0])
-        }
-        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
-        glToKHR.onDrawForRecord(glToKHR.recordTexture)
-            sendToInference()
+
+
         if (glRecord.framebufferRecord != 0) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glRecord.framebufferRecord)
             drawFBO()
@@ -262,25 +276,28 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         drawFBO()
     }
 
-    private fun sendToInference() {
+    private fun sendToInference(callback:(isFaceDetectionFilter:Boolean)->Unit) {
         if (width <= 0) return
         when (filterTypes) {
             FilterTypes.BULGE -> {
+                callback(true)
                 readCallback?.invoke(this.width, this.height)
             }
 
             FilterTypes.BULGE_DOUBLE -> {
+                callback(true)
                 readCallback?.invoke(this.width, this.height)
             }
 
             FilterTypes.DEBUG -> {
+                callback(true)
                 readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
                 }
             }
 
-            else -> {}
+            else -> {callback(false)}
         }
     }
 

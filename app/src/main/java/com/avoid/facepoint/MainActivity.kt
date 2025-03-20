@@ -384,16 +384,17 @@ class MainActivity : AppCompatActivity() {
                         encoder.prepareEncoder(
                             fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
                             GL_VERSION,outputPath)
-                        glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+//                        glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
                             glRecord.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
                         }
                         record = true
                     } else {
-                        glSurface.requestRender()
+//                        glSurface.requestRender()
                         val latch = CountDownLatch(1)
-                        glSurface.queueEvent {
+//                        glSurface.queueEvent {
+//                        }
                             handler.post {
                                 encoder.drainEncoder(false)
                                 if (record) {
@@ -403,7 +404,6 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 latch.countDown()
                             }
-                        }
                         latch.await()
                     }
                 }
@@ -412,7 +412,7 @@ class MainActivity : AppCompatActivity() {
                     record = false
                     handler.post {
 
-                        glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+//                        glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
                         encoder.drainEncoder(true)
                         encoder.releaseEncoder()
                         Log.e(TAG, "startCamera: DONE")
@@ -682,7 +682,7 @@ class MainActivity : AppCompatActivity() {
                     return@setResultListener
                 }
             }
-            if (!isRecord)
+//            if (!isRecord)
             glSurface.requestRender()
         }
 

@@ -432,7 +432,7 @@ class Encoder {
 
     companion object {
         private const val TAG = "EncodeAndMuxTest"
-        private const val VERBOSE = true
+        private const val VERBOSE = false
 
 
         private val OUTPUT_DIR: File =
