@@ -56,7 +56,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.sqrt
@@ -87,62 +86,23 @@ class MainActivity : AppCompatActivity() {
         .setTargetFrameRate(Range(30, 60))
         .build()
 
+    private val requestMultiplePermission = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { request ->
+        isGrantedCam = request[Manifest.permission.CAMERA] == true
+        isGrantedStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else
+            request[Manifest.permission.WRITE_EXTERNAL_STORAGE] == true || request[Manifest.permission.READ_EXTERNAL_STORAGE] == true
 
-    private val requestCameraPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            isGrantedCam = true
-            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
-        } else {
-            // Permission denied
-            isGrantedCam = false
-            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val requestAudioPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
-        } else {
-            // Permission denied
-            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val requestCameraPermissionLauncherStorageBeforeR = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            isGrantedStorage = true
-            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
-        } else {
-            // Permission denied
-            isGrantedStorage = false
-            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.R)
-    private val requestCameraPermissionLauncherStorage = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show()
-        } else {
-            // Permission denied
-            Toast.makeText(this, "Camera permission is required.", Toast.LENGTH_SHORT).show()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
             try {
-                val intent = Intent()
-                intent.setAction(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                val uri = Uri.fromParts("package", this.packageName, null)
-                intent.setData(uri)
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.fromParts("package", this@MainActivity.packageName, null)
+                }
                 requestPermission.launch(intent)
             } catch (e: Exception) {
-                val intent = Intent()
-                intent.setAction(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                 requestPermission.launch(intent)
             }
         }
@@ -366,7 +326,8 @@ class MainActivity : AppCompatActivity() {
                 if (isRecord) {
                     if (!record) {
 
-                        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        val timeStamp =
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
 
 
                         // Create the filename with the timestamp
@@ -383,7 +344,8 @@ class MainActivity : AppCompatActivity() {
                         ).toString()
                         encoder.prepareEncoder(
                             fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
-                            GL_VERSION,outputPath)
+                            GL_VERSION, outputPath
+                        )
 //                        glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
@@ -392,19 +354,19 @@ class MainActivity : AppCompatActivity() {
                         record = true
                     } else {
 //                        glSurface.requestRender()
-                        val latch = CountDownLatch(1)
+//                        val latch = CountDownLatch(1)
 //                        glSurface.queueEvent {
 //                        }
-                            handler.post {
-                                encoder.drainEncoder(false)
-                                if (record) {
-                                    glRecord.onDrawForRecord(renderer.glRecord.recordTexture)
-                                    encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
-                                    encoder.mInputSurface!!.swapBuffers()
-                                }
-                                latch.countDown()
+                        handler.post {
+                            encoder.drainEncoder(false)
+                            if (record) {
+                                glRecord.onDrawForRecord(renderer.glRecord.recordTexture)
+                                encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
+                                encoder.mInputSurface!!.swapBuffers()
                             }
-                        latch.await()
+//                                latch.countDown()
+                        }
+//                        latch.await()
                     }
                 }
 
@@ -428,7 +390,7 @@ class MainActivity : AppCompatActivity() {
     private var mOffscreenSurfaceImage: OffscreenSurface? = null
     var glSaveImage: GLRecord? = null
     private fun takePicture() {
-        mainActivityBinding.BtnRec.isEnabled=false
+        mainActivityBinding.BtnRec.isEnabled = false
         val width = renderer.cameraHeight
         val height = renderer.cameraWidth
         if (glSaveImage == null) {
@@ -468,7 +430,7 @@ class MainActivity : AppCompatActivity() {
             )
             mOffscreenSurfaceImage!!.swapBuffers()
             runOnUiThread {
-                mainActivityBinding.BtnRec.isEnabled=true
+                mainActivityBinding.BtnRec.isEnabled = true
                 Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
             }
         }
@@ -530,28 +492,37 @@ class MainActivity : AppCompatActivity() {
 
     private fun permissions() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-            checkPermission(
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+//            checkPermission(
+//                Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+//                requestMultiplePermission
+//            )
+//        else {
+//            checkPermission(
+//                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+//                requestMultiplePermission
+//            )
+//        }
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            mutableListOf(
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-                requestCameraPermissionLauncherStorage
             )
-        else {
-            checkPermission(
+        else
+            mutableListOf(
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                requestCameraPermissionLauncherStorageBeforeR
+                Manifest.permission.READ_EXTERNAL_STORAGE
             )
-            checkPermission(
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                requestCameraPermissionLauncherStorageBeforeR
-            )
-        }
-        CoroutineScope(Dispatchers.Default).launch {
-            while (!isGrantedStorage)
-                delay(0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager())
+            permissions.indexOf(Manifest.permission.MANAGE_EXTERNAL_STORAGE).let {
+                permissions.removeAt(it)
+            }
+        Log.e(TAG, "permissions: $permissions", )
 
-            checkPermission(Manifest.permission.CAMERA, requestCameraPermissionLauncher)
-            checkPermission(Manifest.permission.RECORD_AUDIO, requestAudioPermission)
-        }
+        requestMultiplePermission.launch(permissions.toTypedArray())
     }
 
     private fun resizeToFitScreen(
@@ -706,9 +677,9 @@ class MainActivity : AppCompatActivity() {
                 executor.execute {
                     glRecord.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
 
-                        glRecord.onDrawForKHR(
-                            glRecord.recordTexture,
-                        )
+                    glRecord.onDrawForKHR(
+                        glRecord.recordTexture,
+                    )
 
                     temp?.timestamp = frameTimeNanos
                     facemesh!!.send(temp)
@@ -745,34 +716,35 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (!isCameraInitialized && cameraProvider != null) {
             startCamera()
-            if(mainActivityBinding.RvFilterList.adapter!=null)
+            if (mainActivityBinding.RvFilterList.adapter != null)
                 mainActivityBinding.RvFilterList.scrollToPosition(0)
         }
 
     }
 
-    private fun checkPermission(permission: String, launcher: ActivityResultLauncher<String>?) {
-        when (permission) {
-            Manifest.permission.MANAGE_EXTERNAL_STORAGE -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val granted = Environment.isExternalStorageManager()
-                    if (!granted) {
-                        launcher!!.launch(permission)
-                    } else
-                        isGrantedStorage = true
-                }
-            }
-
-            Manifest.permission.RECORD_AUDIO -> {}
-            else -> {
-                if (ContextCompat.checkSelfPermission(
-                        this,
-                        permission
-                    ) != PackageManager.PERMISSION_GRANTED
-                )
-                    launcher!!.launch(permission)
-            }
-        }
+    private fun checkPermission(
+        permission: String,
+        launcher: ActivityResultLauncher<Array<String>>?
+    ) {
+//        when (permission) {
+//            Manifest.permission.MANAGE_EXTERNAL_STORAGE -> {
+//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//                    val granted = Environment.isExternalStorageManager()
+//                    if (!granted) {
+//                        launcher!!.launch(arrayOf(permission))
+//                    } else
+//                        isGrantedStorage = true
+//                }
+//            }
+//            else -> {
+//                if (ContextCompat.checkSelfPermission(
+//                        this,
+//                        permission
+//                    ) != PackageManager.PERMISSION_GRANTED
+//                )
+//                    launcher!!.launch(arrayOf(permission))
+//            }
+//        }
     }
 
 

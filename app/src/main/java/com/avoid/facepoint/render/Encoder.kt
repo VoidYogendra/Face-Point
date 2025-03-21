@@ -1,7 +1,6 @@
 package com.avoid.facepoint.render
 
 
-import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -12,13 +11,8 @@ import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLExt
 import android.opengl.EGLSurface
-import android.opengl.GLES31
-import android.os.Environment
-import android.os.Handler
-import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
-import java.io.File
 import java.io.IOException
 
 
@@ -26,87 +20,12 @@ class Encoder {
 
     private var mWidth = -1
     private var mHeight = -1
-
-
-//    private var mBitRate = -1
-
-
-    var mEncoder: MediaCodec? = null
+    private var mEncoder: MediaCodec? = null
     var mInputSurface: CodecInputSurface? = null
     private var mMuxer: MediaMuxer? = null
     private var mTrackIndex = 0
     private var mMuxerStarted = false
-//    private val glTexture=GlTexture()
-
     private var mBufferInfo: MediaCodec.BufferInfo? = null
-    private val handlerThread= HandlerThread("TEST").apply { start() }
-    private val handler= Handler(handlerThread.looper)
-
-    fun testEncodeVideoToMp4(context: Context) {
-        try {
-//            val bit = BitmapFactory.decodeStream(context.assets.open("frames/frame_0.jpg"))
-//            mWidth=bit.width
-//            mHeight=bit.height
-            val outputPath = File(
-                OUTPUT_DIR,
-                "test." + 512 + "x" + 512 + ".mp4"
-            ).toString()
-            prepareEncoder(30,1200,1600,EGL14.EGL_NO_CONTEXT,3,outputPath)
-            handler.post {
-                mInputSurface!!.makeCurrent()
-            }
-
-
-//            glTexture.textureBitmap=bit
-//            glTexture.onSurfaceCreated()
-
-//            glTexture.onSurfaceChanged(mWidth,mHeight)
-            var c = 0
-            for (i in 0 until NUM_FRAMES) {
-
-                drainEncoder(false)
-                if (c >= 4) c = 0
-//                glTexture.textureBitmap=bit
-                c++
-
-
-                //generateSurfaceFrame(i)
-//                glTexture.onDrawFrame()
-
-                handler.post {
-                    generateSurfaceFrame(i)
-                    mInputSurface!!.setPresentationTime(computePresentationTimeNsec(i))
-                }
-
-
-                if (VERBOSE) Log.d(
-                    TAG,
-                    "sending frame $i to encoder"
-                )
-                handler.post {
-                    mInputSurface!!.swapBuffers()
-                }
-            }
-
-
-            drainEncoder(true)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            releaseEncoder()
-        }
-
-
-    }
-
-    fun render() {
-
-    }
-
-    fun onStop() {
-
-    }
-
 
     fun prepareEncoder(frameRate:Int, width: Int, height: Int, eglContext: EGLContext,glVersion:Int,outputPath:String) {
         mWidth=width
@@ -254,34 +173,6 @@ class Encoder {
             }
         }
     }
-
-
-    fun generateSurfaceFrame(index: Int) {
-        var frameIndex = index
-        frameIndex %= 8
-
-        val startX: Int
-        val startY: Int
-        if (frameIndex < 4) {
-            // (0,0) is bottom-left in GL
-            startX = frameIndex * (mWidth / 4)
-            startY = mHeight / 2
-        } else {
-            startX = (7 - frameIndex) * (mWidth / 4)
-            startY = 0
-        }
-
-        GLES31.glClearColor(TEST_R0 / 255.0f, TEST_G0 / 255.0f, TEST_B0 / 255.0f, 1.0f)
-        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT)
-
-        GLES31.glEnable(GLES31.GL_SCISSOR_TEST)
-        GLES31.glScissor(startX, startY, mWidth / 4, mHeight / 2)
-        GLES31.glClearColor(TEST_R1 / 255.0f, TEST_G1 / 255.0f, TEST_B1 / 255.0f, 1.0f)
-        GLES31.glClear(GLES31.GL_COLOR_BUFFER_BIT)
-        GLES31.glDisable(GLES31.GL_SCISSOR_TEST)
-    }
-
-
     /**
      * Holds state associated with a Surface used for MediaCodec encoder input.
      *
@@ -434,29 +325,8 @@ class Encoder {
         private const val TAG = "EncodeAndMuxTest"
         private const val VERBOSE = false
 
-
-        private val OUTPUT_DIR: File =
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-
-
         private const val MIME_TYPE = "video/avc"
-        private var FRAME_RATE = 3
         private const val IFRAME_INTERVAL = 3
-        private const val NUM_FRAMES = 30
         private const val BPP = 0.25f
-
-
-        private const val TEST_R0 = 0
-        private const val TEST_G0 = 136
-        private const val TEST_B0 = 0
-        private const val TEST_R1 = 236
-        private const val TEST_G1 = 50
-        private const val TEST_B1 = 186
-
-
-        fun computePresentationTimeNsec(frameIndex: Int): Long {
-            val ONE_BILLION: Long = 1000000000
-            return frameIndex * ONE_BILLION / FRAME_RATE
-        }
     }
 }
