@@ -145,7 +145,8 @@ class MainActivity : AppCompatActivity() {
             FilterItem(R.drawable.a, FilterTypes.DEFAULT, renderer, null),
             FilterItem(R.drawable.b, FilterTypes.BULGE_DOUBLE, renderer, null),
             FilterItem(R.drawable.c, FilterTypes.BULGE, renderer, null),
-            FilterItem(R.drawable.d, FilterTypes.DEBUG, renderer, null),
+            FilterItem(R.drawable.d, FilterTypes.GLASSES, renderer, null),
+            FilterItem(R.drawable.d, FilterTypes.EYE_MOUTH, renderer, null),
             FilterItem(R.drawable.e, FilterTypes.INVERSE, renderer, null),
             FilterItem(
                 R.drawable.f,
@@ -248,7 +249,15 @@ class MainActivity : AppCompatActivity() {
                                 render.create2DBULDGEDouble()
                             }
 
-                            FilterTypes.DEBUG -> {
+                            FilterTypes.GLASSES -> {
+                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                                render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
+
+                                render.createExternalTexture()
+                                render.createDefault2D()
+                            }
+                            FilterTypes.EYE_MOUTH -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                                 render.deleteCurrentProgram()
                                 render.deleteCurrentProgram2D()
@@ -554,9 +563,9 @@ class MainActivity : AppCompatActivity() {
         return Pair(normalizedX, normalizedY)
     }
 
-    var facemesh: FaceMesh? = null
-    var mOffscreenSurface: OffscreenSurface? = null
-    var executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var facemesh: FaceMesh? = null
+    private var mOffscreenSurface: OffscreenSurface? = null
+    private var executor: ExecutorService = Executors.newSingleThreadExecutor()
 
     private fun setupStreamingModePipeline() {
 
@@ -645,7 +654,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
 
-                FilterTypes.DEBUG -> {
+                FilterTypes.GLASSES -> {
+                    renderer.faceMeshResult = faceMeshResult
+                }
+                FilterTypes.EYE_MOUTH -> {
                     renderer.faceMeshResult = faceMeshResult
                 }
 
@@ -662,7 +674,6 @@ class MainActivity : AppCompatActivity() {
 
         var temp: AppTextureFrame? = null
         CoroutineScope(Dispatchers.Default).launch {
-
             renderer.readCallback = { w, h ->
                 if (mOffscreenSurface == null) {
                     executor.execute {
@@ -676,23 +687,12 @@ class MainActivity : AppCompatActivity() {
                 val frameTimeNanos = System.nanoTime()
                 executor.execute {
                     glRecord.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
-
                     glRecord.onDrawForKHR(
                         glRecord.recordTexture,
                     )
-
                     temp?.timestamp = frameTimeNanos
                     facemesh!!.send(temp)
                     mOffscreenSurface!!.swapBuffers()
-//                    if (isRecord)
-//                        mOffscreenSurface!!.saveFrame(
-//                            File(
-//                                Environment.getExternalStoragePublicDirectory(
-//                                    Environment.DIRECTORY_DOWNLOADS
-//                                ), "test $frameTimeNanos ${mOffscreenSurface!!.width}X${mOffscreenSurface!!.height} .png"
-//                            )
-//                        )
-
                 }
             }
         }
@@ -719,34 +719,7 @@ class MainActivity : AppCompatActivity() {
             if (mainActivityBinding.RvFilterList.adapter != null)
                 mainActivityBinding.RvFilterList.scrollToPosition(0)
         }
-
     }
-
-    private fun checkPermission(
-        permission: String,
-        launcher: ActivityResultLauncher<Array<String>>?
-    ) {
-//        when (permission) {
-//            Manifest.permission.MANAGE_EXTERNAL_STORAGE -> {
-//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-//                    val granted = Environment.isExternalStorageManager()
-//                    if (!granted) {
-//                        launcher!!.launch(arrayOf(permission))
-//                    } else
-//                        isGrantedStorage = true
-//                }
-//            }
-//            else -> {
-//                if (ContextCompat.checkSelfPermission(
-//                        this,
-//                        permission
-//                    ) != PackageManager.PERMISSION_GRANTED
-//                )
-//                    launcher!!.launch(arrayOf(permission))
-//            }
-//        }
-    }
-
 
     companion object {
         internal const val TAG = "MainActivity"

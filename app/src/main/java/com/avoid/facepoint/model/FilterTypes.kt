@@ -6,6 +6,7 @@ enum class FilterTypes {
     INVERSE{},
     BULGE{},
     BULGE_DOUBLE{},
-    DEBUG{}
+    GLASSES{},
+    EYE_MOUTH{},
 //    FILTER3D{}
 }

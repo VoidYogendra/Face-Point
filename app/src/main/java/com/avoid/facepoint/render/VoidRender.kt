@@ -7,7 +7,6 @@ import android.graphics.SurfaceTexture
 import android.opengl.EGL14
 import android.opengl.EGLContext
 import android.opengl.GLES20
-import android.opengl.GLES31
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
@@ -113,9 +112,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     val glToKHR = GLRecord(context)
 
     var faceMeshResult: FaceMeshResult? = null
-    var faceGLRender: FaceMeshResultGlRenderer? = null
-    var matrix = MatrixCalc()
-    var maskMatrix = FloatArray(16)
+    private var faceGLRender: FaceMeshResultGlRenderer? = null
+    private var faceGLRenderEyeMouth: FaceMeshEyeMouth? = null
+    private var matrix = MatrixCalc()
+    private var maskMatrix = FloatArray(16)
 
     private fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
@@ -146,6 +146,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         eglContext = EGL14.eglGetCurrentContext()
 
         faceGLRender = FaceMeshResultGlRenderer()
+        faceGLRenderEyeMouth = FaceMeshEyeMouth()
     }
 
     override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
@@ -249,7 +250,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 }
                 gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
                 glToKHR.onDrawForRecord(glToKHR.recordTexture)
-                gl.glFlush()
+                gl.glFinish()
                 if (framebufferName != 0) {
                     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
                     onDrawToFbo(textures[0])
@@ -289,11 +290,18 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 readCallback?.invoke(this.width, this.height)
             }
 
-            FilterTypes.DEBUG -> {
+            FilterTypes.GLASSES -> {
                 callback(true)
                 readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
+                }
+            }
+            FilterTypes.EYE_MOUTH -> {
+                callback(true)
+                readCallback?.invoke(this.width, this.height)
+                if (faceMeshResult != null) {
+                    faceGLRenderEyeMouth!!.renderResult(faceMeshResult, maskMatrix)
                 }
             }
 
