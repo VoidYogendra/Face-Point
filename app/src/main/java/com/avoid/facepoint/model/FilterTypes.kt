@@ -8,5 +8,6 @@ enum class FilterTypes {
     BULGE_DOUBLE{},
     GLASSES{},
     EYE_MOUTH{},
+    EYE_RECT{},
 //    FILTER3D{}
 }

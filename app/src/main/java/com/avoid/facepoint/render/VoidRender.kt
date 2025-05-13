@@ -114,6 +114,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     var faceMeshResult: FaceMeshResult? = null
     private var faceGLRender: FaceMeshResultGlRenderer? = null
     private var faceGLRenderEyeMouth: FaceMeshEyeMouth? = null
+    private var faceGLRenderEyeRect: FaceMeshEyeRect? = null
     private var matrix = MatrixCalc()
     private var maskMatrix = FloatArray(16)
 
@@ -147,6 +148,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         faceGLRender = FaceMeshResultGlRenderer()
         faceGLRenderEyeMouth = FaceMeshEyeMouth()
+        faceGLRenderEyeRect= FaceMeshEyeRect()
     }
 
     override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
@@ -302,6 +304,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRenderEyeMouth!!.renderResult(faceMeshResult, maskMatrix)
+                }
+            }
+            FilterTypes.EYE_RECT -> {
+                callback(true)
+                readCallback?.invoke(this.width, this.height)
+                if (faceMeshResult != null) {
+                    faceGLRenderEyeRect!!.renderResult(faceMeshResult, maskMatrix)
                 }
             }
 

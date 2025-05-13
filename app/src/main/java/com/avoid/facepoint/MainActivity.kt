@@ -143,6 +143,7 @@ class MainActivity : AppCompatActivity() {
 
         val dataSet = arrayOf(
             FilterItem(R.drawable.a, FilterTypes.DEFAULT, renderer, null),
+            FilterItem(R.drawable.d, FilterTypes.EYE_RECT, renderer, null),
             FilterItem(R.drawable.b, FilterTypes.BULGE_DOUBLE, renderer, null),
             FilterItem(R.drawable.c, FilterTypes.BULGE, renderer, null),
             FilterItem(R.drawable.d, FilterTypes.GLASSES, renderer, null),
@@ -258,6 +259,14 @@ class MainActivity : AppCompatActivity() {
                                 render.createDefault2D()
                             }
                             FilterTypes.EYE_MOUTH -> {
+                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                                render.deleteCurrentProgram()
+                                render.deleteCurrentProgram2D()
+
+                                render.createExternalTexture()
+                                render.createDefault2D()
+                            }
+                            FilterTypes.EYE_RECT -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                                 render.deleteCurrentProgram()
                                 render.deleteCurrentProgram2D()
@@ -658,6 +667,9 @@ class MainActivity : AppCompatActivity() {
                     renderer.faceMeshResult = faceMeshResult
                 }
                 FilterTypes.EYE_MOUTH -> {
+                    renderer.faceMeshResult = faceMeshResult
+                }
+                FilterTypes.EYE_RECT -> {
                     renderer.faceMeshResult = faceMeshResult
                 }
 
