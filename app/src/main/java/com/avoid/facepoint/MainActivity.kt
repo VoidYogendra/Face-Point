@@ -22,7 +22,6 @@ import android.view.Surface
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.result.ActivityResult
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -336,9 +335,8 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             val fps = 60
-            val frameInterval = 1000L / fps   // 33ms for ~30FPS
-            Log.e(TAG, "startCamera: Interval $frameInterval")
             val glRecord = GLRecord(context)
+            var frame=0
             while (true) {
                 val frameTimeNanos = System.nanoTime()
                 if (isRecord) {
@@ -364,17 +362,15 @@ class MainActivity : AppCompatActivity() {
                             fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
                             GL_VERSION, outputPath
                         )
-//                        glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
                             glRecord.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
                         }
                         record = true
                     } else {
-//                        glSurface.requestRender()
-//                        val latch = CountDownLatch(1)
-//                        glSurface.queueEvent {
-//                        }
+                        while (frame>=renderer.frame)
+                            delay(1)
+                        frame=renderer.frame
                         handler.post {
                             encoder.drainEncoder(false)
                             if (record) {
@@ -382,23 +378,18 @@ class MainActivity : AppCompatActivity() {
                                 encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
                                 encoder.mInputSurface!!.swapBuffers()
                             }
-//                                latch.countDown()
                         }
-//                        latch.await()
                     }
                 }
 
                 if (!isRecord && record) {
                     record = false
                     handler.post {
-
-//                        glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
                         encoder.drainEncoder(true)
                         encoder.releaseEncoder()
                         Log.e(TAG, "startCamera: DONE")
                     }
                 }
-                delay(frameInterval) // Wait for the next frame (instead of busy looping)
             }
         }
 

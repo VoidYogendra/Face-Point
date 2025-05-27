@@ -44,6 +44,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         Companion.loadLUT(context.assets, file)
     }
 
+    var frame=0
+
     var filterTypes: FilterTypes = FilterTypes.DEFAULT
 
     private var surfaceTexture: SurfaceTexture? = null
@@ -244,20 +246,23 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 onDrawCallback.poll()?.run()
             }
         }
+        //TODO: either sync FaceMeshResult with this camera texture or use FaceMeshResult's texture instead of original camera texture
+        if (glToKHR.framebufferRecord != 0) {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
+            onDrawToFbo(textures[0])
+        }
+        gl.glFinish()
         sendToInference(){
             if (it){
-                if (glToKHR.framebufferRecord != 0) {
-                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
-                    onDrawToFbo(textures[0])
-                }
-                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
-                glToKHR.onDrawForRecord(glToKHR.recordTexture)
-                gl.glFinish()
-                if (framebufferName != 0) {
-                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
-                    onDrawToFbo(textures[0])
 
-                }
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+                glToKHR.onDrawForRecord(glToKHR.recordTexture)
+
+//                if (framebufferName != 0) {
+//                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+//                    onDrawToFbo(textures[0])
+//
+//                }
             }
             else{
                 if (framebufferName != 0) {
@@ -277,6 +282,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         glRecord.onDrawForRecord(glRecord.recordTexture)
 
         drawFBO()
+
+        frame++
     }
 
     private fun sendToInference(callback:(isFaceDetectionFilter:Boolean)->Unit) {
