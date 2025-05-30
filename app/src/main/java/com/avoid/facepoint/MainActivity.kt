@@ -38,7 +38,7 @@ import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.render.Encoder
-import com.avoid.facepoint.render.GLRecord
+import com.avoid.facepoint.render.GLTextureManager
 import com.avoid.facepoint.render.VoidRender
 import com.avoid.facepoint.render.egl.EglCore
 import com.avoid.facepoint.render.egl.OffscreenSurface
@@ -263,7 +263,7 @@ class MainActivity : AppCompatActivity() {
                                 render.deleteCurrentProgram2D()
 
                                 render.createExternalTexture()
-                                render.createDefault2D()
+                                render.create2DMask()
                             }
                             FilterTypes.EYE_RECT -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
@@ -335,7 +335,7 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             val fps = 60
-            val glRecord = GLRecord(context)
+            val glTextureManager = GLTextureManager(context)
             var frame=0
             while (true) {
                 val frameTimeNanos = System.nanoTime()
@@ -364,7 +364,7 @@ class MainActivity : AppCompatActivity() {
                         )
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
-                            glRecord.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
+                            glTextureManager.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
                         }
                         record = true
                     } else {
@@ -374,7 +374,7 @@ class MainActivity : AppCompatActivity() {
                         handler.post {
                             encoder.drainEncoder(false)
                             if (record) {
-                                glRecord.onDrawForRecord(renderer.glRecord.recordTexture)
+                                glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
                                 encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
                                 encoder.mInputSurface!!.swapBuffers()
                             }
@@ -397,13 +397,13 @@ class MainActivity : AppCompatActivity() {
 
     private val executorImage: ExecutorService = Executors.newSingleThreadExecutor()
     private var mOffscreenSurfaceImage: OffscreenSurface? = null
-    var glSaveImage: GLRecord? = null
+    var glSaveImage: GLTextureManager? = null
     private fun takePicture() {
         mainActivityBinding.BtnRec.isEnabled = false
         val width = renderer.cameraHeight
         val height = renderer.cameraWidth
         if (glSaveImage == null) {
-            glSaveImage = GLRecord(context)
+            glSaveImage = GLTextureManager(context)
             mOffscreenSurfaceImage =
                 OffscreenSurface(
                     EglCore(renderer.eglContext, EglCore.FLAG_TRY_GLES3),
@@ -417,7 +417,7 @@ class MainActivity : AppCompatActivity() {
         }
         executorImage.execute {
             glSaveImage!!.rotate(true)
-            glSaveImage!!.onDrawForRecord(renderer.glRecord.recordTexture)
+            glSaveImage!!.onDrawForRecord(renderer.glTextureManager.recordTexture)
             val timeStamp: String =
                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
 
@@ -569,7 +569,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupStreamingModePipeline() {
 
-        val glRecord = GLRecord(context)
+        val glTextureManager = GLTextureManager(context)
         facemesh =
             FaceMesh(
                 this,
@@ -682,16 +682,16 @@ class MainActivity : AppCompatActivity() {
                     executor.execute {
                         mOffscreenSurface = OffscreenSurface(core, w, h)
                         mOffscreenSurface!!.makeCurrent()
-                        glRecord.initForUse(w, h)
-                        temp = AppTextureFrame(glRecord.recordTexture, w, h)
+                        glTextureManager.initForUse(w, h)
+                        temp = AppTextureFrame(glTextureManager.recordTexture, w, h)
                     }
                 }
 
                 val frameTimeNanos = System.nanoTime()
                 executor.execute {
-                    glRecord.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
-                    glRecord.onDrawForKHR(
-                        glRecord.recordTexture,
+                    glTextureManager.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
+                    glTextureManager.onDrawForKHR(
+                        glTextureManager.recordTexture,
                     )
                     temp?.timestamp = frameTimeNanos
                     facemesh!!.send(temp)

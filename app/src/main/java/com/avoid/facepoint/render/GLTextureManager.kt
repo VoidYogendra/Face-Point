@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
-class GLRecord(private val context: Context) {
+class GLTextureManager(private val context: Context) {
     companion object {
         private const val TAG = "GLRecord"
         private const val FLOAT_SIZE_BYTES = 4

@@ -44,6 +44,7 @@ class FaceMeshEyeMouth : ResultGlRenderer<FaceMeshResult?> {
         if (result == null) {
             return
         }
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT or gl.GL_DEPTH_BUFFER_BIT)
         gl.glUseProgram(program)
         gl.glUniformMatrix4fv(projectionMatrixHandle, 1, false, projectionMatrix, 0)
 

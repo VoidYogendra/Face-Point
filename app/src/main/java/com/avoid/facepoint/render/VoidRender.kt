@@ -110,8 +110,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var aspectMatrix = FloatArray(16)
     private var aspectMatrix2D = FloatArray(16)
 
-    val glRecord = GLRecord(context)
-    val glToKHR = GLRecord(context)
+    val glTextureManager = GLTextureManager(context)
+    val glToKHR = GLTextureManager(context)
 
     var faceMeshResult: FaceMeshResult? = null
     private var faceGLRender: FaceMeshResultGlRenderer? = null
@@ -194,7 +194,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         aspectMatrix2D = scaleMatrix
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
 
-        glRecord.initForRecord(width, height)
+        glTextureManager.initForRecord(width, height)
         glToKHR.initForKHR(width, height)
     }
 
@@ -274,14 +274,14 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
 
 
-        if (glRecord.framebufferRecord != 0) {
-            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glRecord.framebufferRecord)
+
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        drawFBO()
+        glTextureManager.onDrawForRecord(glTextureManager.recordTexture)
+        if (glTextureManager.framebufferRecord != 0) {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glTextureManager.framebufferRecord)
             drawFBO()
         }
-        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
-        glRecord.onDrawForRecord(glRecord.recordTexture)
-
-        drawFBO()
 
         frame++
     }
@@ -334,6 +334,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
             FilterTypes.BULGE_DOUBLE -> {
                 drawBULDGEDouble(textureID2D)
+            }
+            FilterTypes.EYE_MOUTH -> {
+                drawMask(glToKHR.recordTexture,textureID2D)
             }
 
             else -> {
@@ -729,9 +732,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, texID)
 
-        gl.glUniform2f(centerHandle, x, y);
-        gl.glUniform1f(radiusHandle, scale);
-        gl.glUniform1f(scaleHandle, 0.5f);
+        gl.glUniform2f(centerHandle, x, y)
+        gl.glUniform1f(radiusHandle, scale)
+        gl.glUniform1f(scaleHandle, 0.5f)
 
         gl.glUniform1i(textureHandle2D, 0)
 
@@ -798,7 +801,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glUniform2f(centerHandle2bulge1, center1.width, center1.height)
         gl.glUniform2f(centerHandle2bulge2, center2.width, center2.height)
         gl.glUniform1f(radiusHandle2bulge, scale)
-        gl.glUniform1f(scaleHandle2bulge, 0.5f);
+        gl.glUniform1f(scaleHandle2bulge, 0.5f)
 
         gl.glUniform1i(textureHandle2D, 0)
 
@@ -871,6 +874,49 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
+    private var maskHandle2D = 0
+    fun create2DMask() {
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "mask_frag.glsl")
+        program2D = gl.glCreateProgram()
+        gl.glAttachShader(program2D, vertexShader2D)
+        gl.glAttachShader(program2D, fragmentShader)
+        gl.glLinkProgram(program2D)
+        gl.glUseProgram(program2D) //use it in Codec
+
+        positionHandle2D = gl.glGetAttribLocation(program2D, "aPosition")
+        texturePositionHandle2D = gl.glGetAttribLocation(program2D, "aTexPosition")
+        textureHandle2D = gl.glGetUniformLocation(program2D, "uTexture")
+        maskHandle2D = gl.glGetUniformLocation(program2D, "uMaskTex")
+        matrixHandle2D = gl.glGetUniformLocation(program2D, "u_Matrix")
+
+        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
+    }
+
+    private fun drawMask(camID: Int,maskID: Int) {
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
+        gl.glUseProgram(program2D)
+
+        gl.glBindVertexArray(vao2D[0])
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo2D[0])
+
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, camID)
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, maskID)
+
+        gl.glUniform1i(textureHandle2D, 0)
+        gl.glUniform1i(maskHandle2D, 1)
+
+        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+        gl.glBindVertexArray(0)
+    }
+
+    /**----------------------------------------------------------------------------------------------------------------------------------**/
+
 
     //for recording only
     var framebufferName = 0
