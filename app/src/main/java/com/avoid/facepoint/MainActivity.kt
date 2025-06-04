@@ -1,11 +1,16 @@
 package com.avoid.facepoint
 
 import android.Manifest
+import android.R.attr.height
+import android.R.attr.width
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Matrix
 import android.net.Uri
 import android.opengl.EGL14
 import android.opengl.GLSurfaceView
@@ -257,14 +262,30 @@ class MainActivity : AppCompatActivity() {
                                 render.createExternalTexture()
                                 render.createDefault2D()
                             }
+
                             FilterTypes.EYE_MOUTH -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                                 render.deleteCurrentProgram()
                                 render.deleteCurrentProgram2D()
 
                                 render.createExternalTexture()
+                                val source = BitmapFactory.decodeStream(assets.open("deku.jpeg"))
+                                val matrix = Matrix()
+                                //TODO (FIX SCALE)
+                                matrix.postRotate(180f)
+                                render.overlayImageBitmap = Bitmap.createBitmap(
+                                    source,
+                                    0,
+                                    0,
+                                    source.width,
+                                    source.height,
+                                    matrix,
+                                    true
+                                )
                                 render.create2DMask()
+
                             }
+
                             FilterTypes.EYE_RECT -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
                                 render.deleteCurrentProgram()
@@ -336,7 +357,7 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             val fps = 60
             val glTextureManager = GLTextureManager(context)
-            var frame=0
+            var frame = 0
             while (true) {
                 val frameTimeNanos = System.nanoTime()
                 if (isRecord) {
@@ -364,13 +385,16 @@ class MainActivity : AppCompatActivity() {
                         )
                         handler.post {
                             encoder.mInputSurface!!.makeCurrent()
-                            glTextureManager.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
+                            glTextureManager.initForRecord(
+                                renderer.cameraHeight,
+                                renderer.cameraWidth
+                            )
                         }
                         record = true
                     } else {
-                        while (frame>=renderer.frame)
+                        while (frame >= renderer.frame)
                             delay(1)
-                        frame=renderer.frame
+                        frame = renderer.frame
                         handler.post {
                             encoder.drainEncoder(false)
                             if (record) {
@@ -529,7 +553,7 @@ class MainActivity : AppCompatActivity() {
             permissions.indexOf(Manifest.permission.MANAGE_EXTERNAL_STORAGE).let {
                 permissions.removeAt(it)
             }
-        Log.e(TAG, "permissions: $permissions", )
+        Log.e(TAG, "permissions: $permissions")
 
         requestMultiplePermission.launch(permissions.toTypedArray())
     }
@@ -579,7 +603,7 @@ class MainActivity : AppCompatActivity() {
                     .setRunOnGpu(true)
                     .build()
             )
-        facemesh!!.setErrorListener { message: String, e: RuntimeException? ->
+        facemesh!!.setErrorListener { message: String, _: RuntimeException? ->
             Log.e(
                 TAG,
                 "MediaPipe Face Mesh error:$message"
@@ -628,9 +652,11 @@ class MainActivity : AppCompatActivity() {
 
                         val x473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].x
                         val y473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].y
+                        val size = renderer.width / renderer.height
+                        var faceScale =
+                            (sqrt(((x263 - x463) * (x263 - x463) + (y263 - y463) * (y263 - y463)).toDouble()))
+                        faceScale *= (size * size * size)
 
-                        val faceScale =
-                            (sqrt(((x263 - x463) * (x263 - x463) + (y263 - y463) * (y263 - y463)).toDouble())) * 2
 
 //                        println("Face Scale: $faceScale")
 
@@ -657,9 +683,11 @@ class MainActivity : AppCompatActivity() {
                 FilterTypes.GLASSES -> {
                     renderer.faceMeshResult = faceMeshResult
                 }
+
                 FilterTypes.EYE_MOUTH -> {
                     renderer.faceMeshResult = faceMeshResult
                 }
+
                 FilterTypes.EYE_RECT -> {
                     renderer.faceMeshResult = faceMeshResult
                 }

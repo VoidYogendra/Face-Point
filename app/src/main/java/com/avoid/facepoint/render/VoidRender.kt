@@ -8,9 +8,11 @@ import android.opengl.EGL14
 import android.opengl.EGLContext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
 import android.util.SizeF
+import androidx.compose.ui.graphics.ImageBitmap
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
 import com.google.mediapipe.solutions.facemesh.FaceMeshResult
@@ -119,6 +121,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var faceGLRenderEyeRect: FaceMeshEyeRect? = null
     private var matrix = MatrixCalc()
     private var maskMatrix = FloatArray(16)
+    var overlayImageBitmap:Bitmap?=null
 
     private fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
@@ -336,7 +339,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 drawBULDGEDouble(textureID2D)
             }
             FilterTypes.EYE_MOUTH -> {
-                drawMask(glToKHR.recordTexture,textureID2D)
+                overlayImageBitmap?.let {
+                    drawMask(glToKHR.recordTexture,textureID2D,it)
+                }
             }
 
             else -> {
@@ -875,6 +880,12 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
     private var maskHandle2D = 0
+    private var overlayHandle2D = 0
+    private val overlay = IntArray(1)
+
+    private var uScreenSizeHandle2D = 0
+    private var uOverlaySizeSizeHandle2D = 0
+    private var uOverlayOffsetSizeHandle2D = 0
     fun create2DMask() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
         fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "mask_frag.glsl")
@@ -888,12 +899,33 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         texturePositionHandle2D = gl.glGetAttribLocation(program2D, "aTexPosition")
         textureHandle2D = gl.glGetUniformLocation(program2D, "uTexture")
         maskHandle2D = gl.glGetUniformLocation(program2D, "uMaskTex")
+        overlayHandle2D = gl.glGetUniformLocation(program2D, "overlayTex")
         matrixHandle2D = gl.glGetUniformLocation(program2D, "u_Matrix")
+
+        uScreenSizeHandle2D = gl.glGetUniformLocation(program2D, "uScreenSize")
+        uOverlaySizeSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlaySize")
+        uOverlayOffsetSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlayOffset")
+
+        gl.glUniform2fv(uScreenSizeHandle2D, 1, floatArrayOf(width.toFloat(), height.toFloat()), 0)
+
+        val ff=width.toFloat()/overlayImageBitmap!!.width.toFloat()
+
+        gl.glUniform2fv(uOverlaySizeSizeHandle2D, 1, floatArrayOf(overlayImageBitmap!!.width.toFloat()*ff, overlayImageBitmap!!.height.toFloat()*ff), 0)
+        gl.glUniform2fv(uOverlayOffsetSizeHandle2D, 1, floatArrayOf(0f, (height/ff)), 0)
+
+        gl.glGenTextures(1, overlay, 0)
+        gl.glActiveTexture(gl.GL_TEXTURE2)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, overlay[0])
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+        GLUtils.texImage2D(gl.GL_TEXTURE_2D,0,overlayImageBitmap,0)
 
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
 
-    private fun drawMask(camID: Int,maskID: Int) {
+    private fun drawMask(camID: Int,maskID: Int,overlayImageBitmap: Bitmap) {
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
         gl.glUseProgram(program2D)
@@ -903,11 +935,19 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, camID)
+
         gl.glActiveTexture(gl.GL_TEXTURE1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, maskID)
 
+        gl.glActiveTexture(gl.GL_TEXTURE2)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, overlay[0])
+
+        GLUtils.texSubImage2D(gl.GL_TEXTURE_2D,0,0,0,overlayImageBitmap)
+
+
         gl.glUniform1i(textureHandle2D, 0)
         gl.glUniform1i(maskHandle2D, 1)
+        gl.glUniform1i(overlayHandle2D, 2)
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
 
@@ -919,7 +959,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
 
     //for recording only
-    var framebufferName = 0
+    private var framebufferName = 0
     private fun createRenderTexture(): Int {
         val args = IntArray(1)
 
