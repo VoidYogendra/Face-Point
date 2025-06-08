@@ -26,6 +26,7 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.widget.ImageButton
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -36,6 +37,10 @@ import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
@@ -130,6 +135,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         mainActivityBinding = MainActivityBinding.inflate(layoutInflater)
         setContentView(mainActivityBinding.root)
         init()
@@ -147,38 +153,38 @@ class MainActivity : AppCompatActivity() {
 
         val dataSet = arrayOf(
             FilterItem(R.drawable.a, FilterTypes.DEFAULT, renderer, null),
-            FilterItem(R.drawable.d, FilterTypes.EYE_RECT, renderer, null),
-            FilterItem(R.drawable.b, FilterTypes.BULGE_DOUBLE, renderer, null),
-            FilterItem(R.drawable.c, FilterTypes.BULGE, renderer, null),
-            FilterItem(R.drawable.d, FilterTypes.GLASSES, renderer, null),
-            FilterItem(R.drawable.d, FilterTypes.EYE_MOUTH, renderer, null),
-            FilterItem(R.drawable.e, FilterTypes.INVERSE, renderer, null),
+            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, renderer, null),
+            FilterItem(R.drawable.c, FilterTypes.EYE_RECT, renderer, null),
+            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE, renderer, null),
+            FilterItem(R.drawable.e, FilterTypes.BULGE, renderer, null),
+            FilterItem(R.drawable.f, FilterTypes.GLASSES, renderer, null),
+            FilterItem(R.drawable.g, FilterTypes.INVERSE, renderer, null),
             FilterItem(
-                R.drawable.f,
+                R.drawable.h,
                 FilterTypes.LUT,
                 renderer,
                 "lut/b&w.cube"
             ),
             FilterItem(
-                R.drawable.g,
+                R.drawable.i,
                 FilterTypes.LUT,
                 renderer,
                 "lut/CineStill.cube"
             ),
             FilterItem(
-                R.drawable.h,
+                R.drawable.j,
                 FilterTypes.LUT,
                 renderer,
                 "lut/Sunset.cube"
             ),
             FilterItem(
-                R.drawable.i,
+                R.drawable.k,
                 FilterTypes.LUT,
                 renderer,
                 "lut/Sunset2.cube"
             ),
             FilterItem(
-                R.drawable.j,
+                R.drawable.l,
                 FilterTypes.LUT,
                 renderer,
                 "lut/BW1.cube"
@@ -269,9 +275,10 @@ class MainActivity : AppCompatActivity() {
                                 render.deleteCurrentProgram2D()
 
                                 render.createExternalTexture()
-                                val source = BitmapFactory.decodeStream(assets.open("deku.jpeg"))
+                                val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
                                 val matrix = Matrix()
                                 //TODO (FIX SCALE)
+                                matrix.preScale(-1f, 1f)
                                 matrix.postRotate(180f)
                                 render.overlayImageBitmap = Bitmap.createBitmap(
                                     source,
@@ -295,11 +302,14 @@ class MainActivity : AppCompatActivity() {
                                 render.createDefault2D()
                             }
                         }
-                        if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-                            render.rotate(false)
-                        } else {
-                            render.rotate(true)
-                        }
+                        if (BuildConfig.DEMO)
+                            renderer.rotateVideo()
+                        else
+                            if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                                render.rotate(false)
+                            } else {
+                                render.rotate(true)
+                            }
                     }
 
                     item = lastItem
@@ -347,7 +357,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "init: XXXXXXXXX $isGrantedCam $isGrantedStorage")
             }
             runOnUiThread {
-                startCamera()
+                sourceContent()
             }
         }
 
@@ -421,11 +431,12 @@ class MainActivity : AppCompatActivity() {
 
     private val executorImage: ExecutorService = Executors.newSingleThreadExecutor()
     private var mOffscreenSurfaceImage: OffscreenSurface? = null
-    var glSaveImage: GLTextureManager? = null
+    private var glSaveImage: GLTextureManager? = null
+
     private fun takePicture() {
         mainActivityBinding.BtnRec.isEnabled = false
-        val width = renderer.cameraHeight
-        val height = renderer.cameraWidth
+        val width = if (BuildConfig.DEBUG) renderer.cameraWidth else renderer.cameraHeight
+        val height = if (BuildConfig.DEBUG) renderer.cameraHeight else renderer.cameraWidth
         if (glSaveImage == null) {
             glSaveImage = GLTextureManager(context)
             mOffscreenSurfaceImage =
@@ -523,19 +534,57 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    private fun sourceContent() {
+        if (BuildConfig.DEMO)
+            startDemoVideo()
+        else
+            startCamera()
+    }
+
+    private fun startDemoVideo() {
+        if (isCameraInitialized) return
+        isCameraInitialized = true
+        Log.e(TAG, "startCamera: XXXXXXXXX")
+        val surfaceTexture = renderer.getSurfaceTexture()
+        val surface = Surface(surfaceTexture)
+
+        val player = ExoPlayer.Builder(context).build()
+        player.setVideoSurface(surface)
+        val fileName="peakpx.mp4"
+        val file =File(context.cacheDir, fileName)
+            .also {
+                if (!it.exists()) {
+                    it.outputStream().use { cache ->
+                        context.assets.open(fileName).use { inputStream ->
+                            inputStream.copyTo(cache)
+                        }
+                    }
+                }
+            }
+        val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
+        player.setMediaItem(mediaItem)
+
+        player.addListener(object : Player.Listener {
+            override fun onVideoSizeChanged(res: VideoSize) {
+                super.onVideoSizeChanged(res)
+                val (mWidth, mHeight) = resizeToFitScreen(
+                    res.width,
+                    res.height,
+                    renderer.width,
+                    renderer.height
+                )
+                renderer.resize(res.width, res.height, renderer.width, renderer.height)
+
+            }
+        })
+        player.repeatMode = Player.REPEAT_MODE_ONE
+        player.prepare()
+        player.play()
+
+    }
+
     private fun permissions() {
 
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-//            checkPermission(
-//                Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-//                requestMultiplePermission
-//            )
-//        else {
-//            checkPermission(
-//                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-//                requestMultiplePermission
-//            )
-//        }
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
             mutableListOf(
                 Manifest.permission.CAMERA,
@@ -746,7 +795,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (!isCameraInitialized && cameraProvider != null) {
-            startCamera()
+            sourceContent()
             if (mainActivityBinding.RvFilterList.adapter != null)
                 mainActivityBinding.RvFilterList.scrollToPosition(0)
         }

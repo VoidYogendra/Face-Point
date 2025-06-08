@@ -238,6 +238,17 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.glUseProgram(0)
         }
     }
+    fun rotateVideo() {
+        onDrawCallback.add {
+            gl.glUseProgram(programOES)
+
+            Matrix.setRotateM(aspectMatrix, 0, 180f, 0f, 0f, 1.0f)
+            Matrix.scaleM(aspectMatrix, 0, -1.0f, 1.0f, 1.0f)
+
+            gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+            gl.glUseProgram(0)
+        }
+    }
 
     //    var buffer: ByteBuffer? = null
     var readCallback: ((width: Int, height: Int) -> Unit)? = null
@@ -906,12 +917,15 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         uOverlaySizeSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlaySize")
         uOverlayOffsetSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlayOffset")
 
-        gl.glUniform2fv(uScreenSizeHandle2D, 1, floatArrayOf(width.toFloat(), height.toFloat()), 0)
+        gl.glUniform2fv(uScreenSizeHandle2D, 1, floatArrayOf(cameraHeight.toFloat(), cameraWidth.toFloat()), 0)
 
-        val ff=width.toFloat()/overlayImageBitmap!!.width.toFloat()
+        Log.e(TAG, "create2DMask: $cameraWidth $cameraHeight ", )
 
-        gl.glUniform2fv(uOverlaySizeSizeHandle2D, 1, floatArrayOf(overlayImageBitmap!!.width.toFloat()*ff, overlayImageBitmap!!.height.toFloat()*ff), 0)
-        gl.glUniform2fv(uOverlayOffsetSizeHandle2D, 1, floatArrayOf(0f, (height/ff)), 0)
+        val ff=cameraHeight.toFloat()/overlayImageBitmap!!.width.toFloat()//cameraHeight is actually weight
+        val gg=cameraWidth.toFloat()/overlayImageBitmap!!.height.toFloat()//cameraWidth is actually height
+
+        gl.glUniform2fv(uOverlaySizeSizeHandle2D, 1, floatArrayOf(overlayImageBitmap!!.width.toFloat()*(ff), overlayImageBitmap!!.height.toFloat()*(gg)), 0)
+        gl.glUniform2fv(uOverlayOffsetSizeHandle2D, 1, floatArrayOf(ff, 0f), 0)
 
         gl.glGenTextures(1, overlay, 0)
         gl.glActiveTexture(gl.GL_TEXTURE2)

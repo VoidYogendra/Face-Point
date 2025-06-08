@@ -19,17 +19,18 @@
     android:layout_alignParentEnd="true"
     android:layout_above="@id/Btn_Rec"
     android:layout_width="match_parent"
-    android:layout_height="100dp"/>
+    android:layout_height="@dimen/_100dp"/>
     <ImageButton
         android:id="@+id/Btn_Rec"
         android:layout_alignParentBottom="true"
         android:layout_alignParentStart="true"
         android:layout_alignParentEnd="true"
         android:filterTouchesWhenObscured="true"
-        android:layout_width="111dp"
-        android:layout_height="111dp"
+        android:layout_width="@dimen/_111dp"
+        android:layout_height="@dimen/_111dp"
         android:background="@android:color/transparent"
         android:contentDescription="@string/app_name"
+        android:layout_marginBottom="@dimen/_20dp"
         android:scaleType="fitCenter"
         android:src="@drawable/baseline_radio_button_checked_24"
         app:tint="@color/white" />
@@ -40,8 +41,8 @@
         android:layout_marginEnd="50dp"
         android:layout_alignParentEnd="true"
         android:filterTouchesWhenObscured="true"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
+        android:layout_width="@dimen/_50dp"
+        android:layout_height="@dimen/_50dp"
         android:background="@android:color/transparent"
         android:contentDescription="@string/app_name"
         android:scaleType="fitCenter"

@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.avoid.facepoint"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.avoid.facepoint"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -23,6 +23,7 @@ android {
                 cppFlags += ""
             }
         }
+        buildConfigField("Boolean","DEMO","false")
     }
 
     buildTypes {
@@ -44,6 +45,7 @@ android {
     }
     buildFeatures {
         viewBinding=true
+        android.buildFeatures.buildConfig=true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
@@ -63,6 +65,10 @@ android {
 }
 
 dependencies {
+    implementation("androidx.media3:media3-exoplayer:1.7.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.7.1")
+    implementation("androidx.media3:media3-ui:1.7.1")
+
     implementation(libs.facemesh)
     implementation(libs.solution.core)
 
