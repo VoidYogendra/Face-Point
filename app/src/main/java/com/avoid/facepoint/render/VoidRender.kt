@@ -46,7 +46,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         Companion.loadLUT(context.assets, file)
     }
 
-    var frame=0
+    var frame = 0
 
     var filterTypes: FilterTypes = FilterTypes.DEFAULT
 
@@ -121,7 +121,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var faceGLRenderEyeRect: FaceMeshEyeRect? = null
     private var matrix = MatrixCalc()
     private var maskMatrix = FloatArray(16)
-    var overlayImageBitmap:Bitmap?=null
+    var overlayImageBitmap: Bitmap? = null
 
     private fun onSurfaceCreated2D() {
         vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
@@ -153,7 +153,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         faceGLRender = FaceMeshResultGlRenderer()
         faceGLRenderEyeMouth = FaceMeshEyeMouth()
-        faceGLRenderEyeRect= FaceMeshEyeRect()
+        faceGLRenderEyeRect = FaceMeshEyeRect()
     }
 
     override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
@@ -238,6 +238,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.glUseProgram(0)
         }
     }
+
     fun rotateVideo() {
         onDrawCallback.add {
             gl.glUseProgram(programOES)
@@ -266,27 +267,17 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             onDrawToFbo(textures[0])
         }
         gl.glFinish()
-        sendToInference(){
-            if (it){
-
+        if (filterTypes.faceMesh) {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+            glToKHR.onDrawForRecord(glToKHR.recordTexture)
+            sendToInference()
+        } else {
+            if (framebufferName != 0) {
                 gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
-                glToKHR.onDrawForRecord(glToKHR.recordTexture)
+                onDrawToFbo(textures[0])
 
-//                if (framebufferName != 0) {
-//                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
-//                    onDrawToFbo(textures[0])
-//
-//                }
-            }
-            else{
-                if (framebufferName != 0) {
-                    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
-                    onDrawToFbo(textures[0])
-
-                }
             }
         }
-
 
 
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
@@ -299,43 +290,43 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         frame++
     }
-
-    private fun sendToInference(callback:(isFaceDetectionFilter:Boolean)->Unit) {
+    //TODO Replace whole pipeline to interface Style,
+    // so every filter can have own class that implements all basic rendering logic
+    // i.e create , draw , delete
+    // for more cleaner code
+    private fun sendToInference() {
         if (width <= 0) return
         when (filterTypes) {
             FilterTypes.BULGE -> {
-                callback(true)
                 readCallback?.invoke(this.width, this.height)
             }
 
             FilterTypes.BULGE_DOUBLE -> {
-                callback(true)
                 readCallback?.invoke(this.width, this.height)
             }
 
             FilterTypes.GLASSES -> {
-                callback(true)
                 readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
                 }
             }
+
             FilterTypes.EYE_MOUTH -> {
-                callback(true)
                 readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRenderEyeMouth!!.renderResult(faceMeshResult, maskMatrix)
                 }
             }
+
             FilterTypes.EYE_RECT -> {
-                callback(true)
                 readCallback?.invoke(this.width, this.height)
                 if (faceMeshResult != null) {
                     faceGLRenderEyeRect!!.renderResult(faceMeshResult, maskMatrix)
                 }
             }
 
-            else -> {callback(false)}
+            else -> {}
         }
     }
 
@@ -349,9 +340,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             FilterTypes.BULGE_DOUBLE -> {
                 drawBULDGEDouble(textureID2D)
             }
+
             FilterTypes.EYE_MOUTH -> {
                 overlayImageBitmap?.let {
-                    drawMask(glToKHR.recordTexture,textureID2D,it)
+                    drawMask(glToKHR.recordTexture, textureID2D, it)
                 }
             }
 
@@ -917,14 +909,29 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         uOverlaySizeSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlaySize")
         uOverlayOffsetSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlayOffset")
 
-        gl.glUniform2fv(uScreenSizeHandle2D, 1, floatArrayOf(cameraHeight.toFloat(), cameraWidth.toFloat()), 0)
+        gl.glUniform2fv(
+            uScreenSizeHandle2D,
+            1,
+            floatArrayOf(cameraHeight.toFloat(), cameraWidth.toFloat()),
+            0
+        )
 
-        Log.e(TAG, "create2DMask: $cameraWidth $cameraHeight ", )
+        Log.e(TAG, "create2DMask: $cameraWidth $cameraHeight ")
 
-        val ff=cameraHeight.toFloat()/overlayImageBitmap!!.width.toFloat()//cameraHeight is actually weight
-        val gg=cameraWidth.toFloat()/overlayImageBitmap!!.height.toFloat()//cameraWidth is actually height
+        val ff =
+            cameraHeight.toFloat() / overlayImageBitmap!!.width.toFloat()//cameraHeight is actually weight
+        val gg =
+            cameraWidth.toFloat() / overlayImageBitmap!!.height.toFloat()//cameraWidth is actually height
 
-        gl.glUniform2fv(uOverlaySizeSizeHandle2D, 1, floatArrayOf(overlayImageBitmap!!.width.toFloat()*(ff), overlayImageBitmap!!.height.toFloat()*(gg)), 0)
+        gl.glUniform2fv(
+            uOverlaySizeSizeHandle2D,
+            1,
+            floatArrayOf(
+                overlayImageBitmap!!.width.toFloat() * (ff),
+                overlayImageBitmap!!.height.toFloat() * (gg)
+            ),
+            0
+        )
         gl.glUniform2fv(uOverlayOffsetSizeHandle2D, 1, floatArrayOf(ff, 0f), 0)
 
         gl.glGenTextures(1, overlay, 0)
@@ -934,12 +941,12 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
-        GLUtils.texImage2D(gl.GL_TEXTURE_2D,0,overlayImageBitmap,0)
+        GLUtils.texImage2D(gl.GL_TEXTURE_2D, 0, overlayImageBitmap, 0)
 
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
 
-    private fun drawMask(camID: Int,maskID: Int,overlayImageBitmap: Bitmap) {
+    private fun drawMask(camID: Int, maskID: Int, overlayImageBitmap: Bitmap) {
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
         gl.glUseProgram(program2D)
@@ -956,7 +963,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glActiveTexture(gl.GL_TEXTURE2)
         gl.glBindTexture(gl.GL_TEXTURE_2D, overlay[0])
 
-        GLUtils.texSubImage2D(gl.GL_TEXTURE_2D,0,0,0,overlayImageBitmap)
+        GLUtils.texSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, overlayImageBitmap)
 
 
         gl.glUniform1i(textureHandle2D, 0)

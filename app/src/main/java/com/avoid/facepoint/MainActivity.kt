@@ -277,7 +277,6 @@ class MainActivity : AppCompatActivity() {
                                 render.createExternalTexture()
                                 val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
                                 val matrix = Matrix()
-                                //TODO (FIX SCALE)
                                 matrix.preScale(-1f, 1f)
                                 matrix.postRotate(180f)
                                 render.overlayImageBitmap = Bitmap.createBitmap(

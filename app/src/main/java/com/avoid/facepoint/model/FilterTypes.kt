@@ -1,13 +1,13 @@
 package com.avoid.facepoint.model
 
-enum class FilterTypes {
-    DEFAULT{},
-    LUT{},
-    INVERSE{},
-    BULGE{},
-    BULGE_DOUBLE{},
-    GLASSES{},
-    EYE_MOUTH{},
-    EYE_RECT{},
+enum class FilterTypes(val faceMesh: Boolean) {
+    DEFAULT(false),
+    LUT(false),
+    INVERSE(false),
+    BULGE(true),
+    BULGE_DOUBLE(true),
+    GLASSES(true),
+    EYE_MOUTH(true),
+    EYE_RECT(true),
 //    FILTER3D{}
 }
