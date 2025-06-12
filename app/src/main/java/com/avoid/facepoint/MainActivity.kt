@@ -1,8 +1,6 @@
 package com.avoid.facepoint
 
 import android.Manifest
-import android.R.attr.height
-import android.R.attr.width
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -434,8 +432,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun takePicture() {
         mainActivityBinding.BtnRec.isEnabled = false
-        val width = if (BuildConfig.DEBUG) renderer.cameraWidth else renderer.cameraHeight
-        val height = if (BuildConfig.DEBUG) renderer.cameraHeight else renderer.cameraWidth
+        val width = if (!BuildConfig.DEBUG) renderer.cameraWidth else renderer.cameraHeight
+        val height = if (!BuildConfig.DEBUG) renderer.cameraHeight else renderer.cameraWidth
         if (glSaveImage == null) {
             glSaveImage = GLTextureManager(context)
             mOffscreenSurfaceImage =
@@ -549,8 +547,8 @@ class MainActivity : AppCompatActivity() {
 
         val player = ExoPlayer.Builder(context).build()
         player.setVideoSurface(surface)
-        val fileName="peakpx.mp4"
-        val file =File(context.cacheDir, fileName)
+        val fileName = "peakpx.mp4"
+        val file = File(context.cacheDir, fileName)
             .also {
                 if (!it.exists()) {
                     it.outputStream().use { cache ->
@@ -752,27 +750,24 @@ class MainActivity : AppCompatActivity() {
         val core = EglCore(EGL14.eglGetCurrentContext(), EglCore.FLAG_TRY_GLES3)
 
         var temp: AppTextureFrame? = null
-        CoroutineScope(Dispatchers.Default).launch {
-            renderer.readCallback = { w, h ->
+
+        renderer.readCallback = { w, h ->
+            executor.execute {
+                val frameTimeNanos = System.nanoTime()
                 if (mOffscreenSurface == null) {
-                    executor.execute {
-                        mOffscreenSurface = OffscreenSurface(core, w, h)
-                        mOffscreenSurface!!.makeCurrent()
-                        glTextureManager.initForUse(w, h)
-                        temp = AppTextureFrame(glTextureManager.recordTexture, w, h)
-                    }
+                    mOffscreenSurface = OffscreenSurface(core, w, h)
+                    mOffscreenSurface!!.makeCurrent()
+                    glTextureManager.initForUse(w, h)
+                    temp = AppTextureFrame(glTextureManager.recordTexture, w, h)
                 }
 
-                val frameTimeNanos = System.nanoTime()
-                executor.execute {
-                    glTextureManager.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
-                    glTextureManager.onDrawForKHR(
-                        glTextureManager.recordTexture,
-                    )
-                    temp?.timestamp = frameTimeNanos
-                    facemesh!!.send(temp)
-                    mOffscreenSurface!!.swapBuffers()
-                }
+                glTextureManager.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
+                glTextureManager.onDrawForKHR(
+                    glTextureManager.recordTexture,
+                )
+                temp?.timestamp = frameTimeNanos
+                facemesh!!.send(temp)
+//              mOffscreenSurface!!.swapBuffers() //// Not Needed as facemesh will swap buffers
             }
         }
     }

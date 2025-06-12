@@ -262,14 +262,15 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             }
         }
         //TODO: either sync FaceMeshResult with this camera texture or use FaceMeshResult's texture instead of original camera texture
-        if (glToKHR.framebufferRecord != 0) {
-            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
-            onDrawToFbo(textures[0])
-        }
-        gl.glFinish()
+
         if (filterTypes.faceMesh) {
+            if (glToKHR.framebufferRecord != 0) {
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
+                onDrawToFbo(textures[0])
+            }
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             glToKHR.onDrawForRecord(glToKHR.recordTexture)
+            gl.glFinish()
             sendToInference()
         } else {
             if (framebufferName != 0) {
@@ -290,43 +291,30 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         frame++
     }
+
     //TODO Replace whole pipeline to interface Style,
     // so every filter can have own class that implements all basic rendering logic
     // i.e create , draw , delete
     // for more cleaner code
     private fun sendToInference() {
         if (width <= 0) return
-        when (filterTypes) {
-            FilterTypes.BULGE -> {
-                readCallback?.invoke(this.width, this.height)
-            }
 
-            FilterTypes.BULGE_DOUBLE -> {
-                readCallback?.invoke(this.width, this.height)
-            }
+        if (filterTypes.faceMesh) // sent drawn KHR texture to FaceMesh Model
+            readCallback?.invoke(this.width, this.height)
 
-            FilterTypes.GLASSES -> {
-                readCallback?.invoke(this.width, this.height)
-                if (faceMeshResult != null) {
+        if (faceMeshResult != null) {
+            when (filterTypes) {
+                FilterTypes.GLASSES -> {
                     faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
                 }
-            }
-
-            FilterTypes.EYE_MOUTH -> {
-                readCallback?.invoke(this.width, this.height)
-                if (faceMeshResult != null) {
+                FilterTypes.EYE_MOUTH -> {
                     faceGLRenderEyeMouth!!.renderResult(faceMeshResult, maskMatrix)
                 }
-            }
-
-            FilterTypes.EYE_RECT -> {
-                readCallback?.invoke(this.width, this.height)
-                if (faceMeshResult != null) {
+                FilterTypes.EYE_RECT -> {
                     faceGLRenderEyeRect!!.renderResult(faceMeshResult, maskMatrix)
                 }
+                else -> {}
             }
-
-            else -> {}
         }
     }
 
