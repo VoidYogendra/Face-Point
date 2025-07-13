@@ -1,7 +1,6 @@
-package com.avoid.facepoint.render
+package com.avoid.facepoint.render.mpfilters
 
 import android.opengl.GLES31 as gl
-import com.google.common.collect.ImmutableSet
 import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmark
 import com.google.mediapipe.solutioncore.ResultGlRenderer
 import com.google.mediapipe.solutions.facemesh.FaceMeshResult

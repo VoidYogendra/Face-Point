@@ -12,9 +12,11 @@ import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
 import android.util.SizeF
-import androidx.compose.ui.graphics.ImageBitmap
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
+import com.avoid.facepoint.render.mpfilters.FaceMeshEyeMouth
+import com.avoid.facepoint.render.mpfilters.FaceMeshEyeRect
+import com.avoid.facepoint.render.mpfilters.FaceMeshResultGlRenderer
 import com.google.mediapipe.solutions.facemesh.FaceMeshResult
 import java.io.BufferedOutputStream
 import java.io.File
@@ -124,8 +126,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     var overlayImageBitmap: Bitmap? = null
 
     private fun onSurfaceCreated2D() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -577,8 +579,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     fun createExternalTexture() {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "main_fragOES.glsl")
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_fragOES.glsl")
 
         programOES = gl.glCreateProgram()
         gl.glAttachShader(programOES, vertexShader)
@@ -628,8 +630,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     fun createExternalTextureINVERSE() {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "grain_fragOES.glsl")
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/grain_fragOES.glsl")
 
         programOES = gl.glCreateProgram()
         gl.glAttachShader(programOES, vertexShader)
@@ -665,8 +667,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
     fun createDefault2D() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -689,8 +691,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var x = 0.5f
     private var y = 0.5f
     fun create2DBULDGE() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "buldge_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/buldge_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -748,14 +750,16 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     private var centerHandle2bulge1 = 0
     private var centerHandle2bulge2 = 0
+    private var radiusHandle1bulge = 0
     private var radiusHandle2bulge = 0
     private var scaleHandle2bulge = 0
+    private var scale1bulge = 0.5f
     private var scale2bulge = 0.5f
     private var center1 = SizeF(0.5f, 0.5f)
     private var center2 = SizeF(0.5f, 0.5f)
     fun create2DBULDGEDouble() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "two_buldge.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/two_buldge.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -769,7 +773,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         centerHandle2bulge1 = gl.glGetUniformLocation(program2D, "center1")
         centerHandle2bulge2 = gl.glGetUniformLocation(program2D, "center2")
-        radiusHandle2bulge = gl.glGetUniformLocation(program2D, "radius")
+
+        radiusHandle1bulge = gl.glGetUniformLocation(program2D, "radius1")
+        radiusHandle2bulge = gl.glGetUniformLocation(program2D, "radius2")
+
         scaleHandle2bulge = gl.glGetUniformLocation(program2D, "scale")
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
@@ -779,8 +786,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         center2 = SizeF(x2, y2)
     }
 
-    fun setPosSCALEDouble(scale: Float) {
-        this.scale2bulge = scale
+    fun setPosSCALEDouble(scale1: Float,scale2: Float) {
+        this.scale1bulge = scale1
+        this.scale2bulge = scale2
     }
 
     private fun drawBULDGEDouble(texID: Int) {
@@ -796,7 +804,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         gl.glUniform2f(centerHandle2bulge1, center1.width, center1.height)
         gl.glUniform2f(centerHandle2bulge2, center2.width, center2.height)
-        gl.glUniform1f(radiusHandle2bulge, scale)
+        gl.glUniform1f(radiusHandle1bulge, scale1bulge)
+        gl.glUniform1f(radiusHandle2bulge, scale2bulge)
         gl.glUniform1f(scaleHandle2bulge, 0.5f)
 
         gl.glUniform1i(textureHandle2D, 0)
@@ -815,15 +824,15 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var shaderType = ShaderType.sampler3D
     fun createExternalTextureLUT() {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
 
         val extensions = gl.glGetString(gl.GL_EXTENSIONS)
         if (!extensions.contains("GL_OES_texture_3D")) {
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "lut_fragOES_MKT.glsl")
+            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES_MKT.glsl")
             Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
             shaderType = ShaderType.sampler2D
         } else
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "lut_fragOES.glsl")
+            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES.glsl")
 
 
         programOES = gl.glCreateProgram()
@@ -878,8 +887,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var uOverlaySizeSizeHandle2D = 0
     private var uOverlayOffsetSizeHandle2D = 0
     fun create2DMask() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "mask_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/mask_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)

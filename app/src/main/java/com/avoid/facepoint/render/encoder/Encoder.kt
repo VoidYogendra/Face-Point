@@ -1,4 +1,4 @@
-package com.avoid.facepoint.render
+package com.avoid.facepoint.render.encoder
 
 
 import android.media.MediaCodec
@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.opengl.EGLContext
 import android.util.Log
+import com.avoid.facepoint.render.CodecInputSurface
 import java.io.IOException
 
 

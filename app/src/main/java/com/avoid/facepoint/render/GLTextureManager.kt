@@ -51,8 +51,8 @@ class GLTextureManager(private val context: Context) {
     var recordTexture = -1
 
     fun initForRecord(width: Int, height: Int) {
-        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2DRec = GLES31.glCreateProgram()
         GLES31.glAttachShader(program2DRec, vertexShader2DRec)
         GLES31.glAttachShader(program2DRec, fragmentShaderRec)
@@ -180,8 +180,8 @@ class GLTextureManager(private val context: Context) {
     }
 
     fun initForKHR(width: Int, height: Int) {
-        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2DRec = GLES31.glCreateProgram()
         GLES31.glAttachShader(program2DRec, vertexShader2DRec)
         GLES31.glAttachShader(program2DRec, fragmentShaderRec)
@@ -310,8 +310,8 @@ class GLTextureManager(private val context: Context) {
 
 
     fun initForUse(width: Int, height: Int) {
-        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2DRec = compileShader(GLES31.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderRec = compileShader(GLES31.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2DRec = GLES31.glCreateProgram()
         GLES31.glAttachShader(program2DRec, vertexShader2DRec)
         GLES31.glAttachShader(program2DRec, fragmentShaderRec)

@@ -1,11 +1,9 @@
-package com.avoid.facepoint.render;
+package com.avoid.facepoint.render.mpfilters;
 
 import android.opengl.GLES20;
-import com.google.common.collect.ImmutableSet;
+
 import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmark;
 import com.google.mediapipe.solutioncore.ResultGlRenderer;
-import com.google.mediapipe.solutions.facemesh.FaceMesh;
-import com.google.mediapipe.solutions.facemesh.FaceMeshConnections;
 import com.google.mediapipe.solutions.facemesh.FaceMeshResult;
 
 import java.nio.ByteBuffer;

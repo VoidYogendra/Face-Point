@@ -34,6 +34,18 @@
         android:scaleType="fitCenter"
         android:src="@drawable/baseline_radio_button_checked_24"
         app:tint="@color/white" />
+    <ProgressBar
+        android:id="@+id/circleProgress"
+        android:visibility="invisible"
+        android:layout_width="@dimen/_111dp"
+        android:layout_height="@dimen/_111dp"
+        android:layout_marginBottom="@dimen/_20dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:indeterminate="true"
+        android:max="100"
+        android:indeterminateDrawable="@drawable/progress_btn"
+        android:background="@android:color/transparent" />
     <ImageButton
         android:id="@+id/Btn_switchCamera"
         android:layout_alignParentBottom="true"

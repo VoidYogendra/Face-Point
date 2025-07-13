@@ -2,6 +2,7 @@ package com.avoid.facepoint
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -9,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Matrix
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.opengl.EGL14
 import android.opengl.GLSurfaceView
@@ -17,11 +19,13 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.util.Range
 import android.view.MotionEvent
 import android.view.Surface
+import android.view.View
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -45,7 +49,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
-import com.avoid.facepoint.render.Encoder
+import com.avoid.facepoint.render.encoder.Encoder
 import com.avoid.facepoint.render.GLTextureManager
 import com.avoid.facepoint.render.VoidRender
 import com.avoid.facepoint.render.egl.EglCore
@@ -365,6 +369,7 @@ class MainActivity : AppCompatActivity() {
             val fps = 60
             val glTextureManager = GLTextureManager(context)
             var frame = 0
+            var outputPath: String? = null
             while (true) {
                 val frameTimeNanos = System.nanoTime()
                 if (isRecord) {
@@ -382,7 +387,7 @@ class MainActivity : AppCompatActivity() {
                             renderer.height,
                             timeStamp
                         )
-                        val outputPath = File(
+                        outputPath = File(
                             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                             fileName
                         ).toString()
@@ -420,6 +425,9 @@ class MainActivity : AppCompatActivity() {
                         encoder.releaseEncoder()
                         Log.e(TAG, "startCamera: DONE")
                     }
+                    outputPath?.let {
+                        updateContent(it)
+                    }
                 }
             }
         }
@@ -431,7 +439,8 @@ class MainActivity : AppCompatActivity() {
     private var glSaveImage: GLTextureManager? = null
 
     private fun takePicture() {
-        mainActivityBinding.BtnRec.isEnabled = false
+        mainActivityBinding.BtnRec.visibility = View.INVISIBLE
+        mainActivityBinding.circleProgress.visibility = View.VISIBLE
         val width = if (!BuildConfig.DEBUG) renderer.cameraWidth else renderer.cameraHeight
         val height = if (!BuildConfig.DEBUG) renderer.cameraHeight else renderer.cameraWidth
         if (glSaveImage == null) {
@@ -450,6 +459,7 @@ class MainActivity : AppCompatActivity() {
         executorImage.execute {
             glSaveImage!!.rotate(true)
             glSaveImage!!.onDrawForRecord(renderer.glTextureManager.recordTexture)
+//            mOffscreenSurfaceImage!!.swapBuffers()
             val timeStamp: String =
                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
 
@@ -469,9 +479,15 @@ class MainActivity : AppCompatActivity() {
                     fileName
                 ), width, height
             )
-            mOffscreenSurfaceImage!!.swapBuffers()
+            updateContent(
+                File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    fileName
+                ).toString()
+            )
             runOnUiThread {
-                mainActivityBinding.BtnRec.isEnabled = true
+                mainActivityBinding.BtnRec.visibility = View.VISIBLE
+                mainActivityBinding.circleProgress.visibility = View.INVISIBLE
                 Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
             }
         }
@@ -529,6 +545,14 @@ class MainActivity : AppCompatActivity() {
             }
         }, ContextCompat.getMainExecutor(this))
 
+    }
+
+    fun updateContent(file: String) {
+        MediaScannerConnection.scanFile(
+            context,
+            arrayOf(file),
+            null
+        ) { path, uri -> Log.i("MediaScanner", "Scanned $path -> URI = $uri") }
     }
 
     private fun sourceContent() {
@@ -622,7 +646,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun normalizeTouch(
+    private fun normalizeTouch(
         touchX: Float,
         touchY: Float,
         screenWidth: Float,
@@ -686,23 +710,22 @@ class MainActivity : AppCompatActivity() {
 
                 FilterTypes.BULGE_DOUBLE -> {
                     if (faceMeshResult.multiFaceLandmarks().size > 0) {
-                        val x463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].x
-                        val y463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].y
 
-                        val x263 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[263].x
-                        val y263 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[263].y
 
                         //468 right 473 left center
                         val x468 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[468].x
                         val y468 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[468].y
+                        val x133 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[133].x
+                        val y133 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[133].y
 
                         val x473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].x
                         val y473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].y
-                        val size = renderer.width / renderer.height
-                        var faceScale =
-                            (sqrt(((x263 - x463) * (x263 - x463) + (y263 - y463) * (y263 - y463)).toDouble()))
-                        faceScale *= (size * size * size)
-
+                        val x463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].x
+                        val y463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].y
+                        val faceScale1 =
+                            (sqrt(((x133 - x468) * (x133 - x468) + (y133 - y468) * (y133 - y468)).toDouble())) * 2
+                        val faceScale2 =
+                            (sqrt(((x463 - x473) * (x463 - x473) + (y463 - y473) * (y463 - y473)).toDouble())) * 2
 
 //                        println("Face Scale: $faceScale")
 
@@ -721,7 +744,7 @@ class MainActivity : AppCompatActivity() {
                         )
 
                         renderer.setPosBULDGEDouble(rX, rY, lX, lY)
-                        renderer.setPosSCALEDouble(faceScale.toFloat())
+                        renderer.setPosSCALEDouble(faceScale1.toFloat(), faceScale2.toFloat())
                     }
                 }
 
