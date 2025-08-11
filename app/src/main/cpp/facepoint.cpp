@@ -1,10 +1,16 @@
 #include <jni.h>
 #include <malloc.h>
 #include "GLES3/gl31.h"
+
 #include <cstring>
 #include <android/asset_manager_jni.h>
 #include <android/log.h>
-
+#define EGL_EGLEXT_PROTOTYPES
+#include "EGL/egl.h"
+#include "EGL/eglext.h"
+#define GL_GLEXT_PROTOTYPES
+#include "GLES2/gl2.h"
+#include "GLES2/gl2ext.h"
 #define  LOG_TAG    "MainJNI"
 
 #define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
@@ -114,7 +120,7 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_loadLUT(JNIEnv *env, j
     delete[] fileContent;
     return lut_data != nullptr;
 }
-int GL_TEXTURE_EXTERNAL_OES= 36197;
+//int GL_TEXTURE_EXTERNAL_OES= 36197;
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_avoid_facepoint_render_VoidRender_00024Companion_createTextureLUT2D(JNIEnv *env,
@@ -209,4 +215,55 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_avoid_facepoint_MainActivity_00024Companion_destroy(JNIEnv *env, jobject thiz) {
     delete[] lut_data;
+}
+
+
+EGLImageKHR eglImage = nullptr;
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_avoid_facepoint_render_VoidRender_00024Companion_makeKHR(JNIEnv *env, jobject thiz, jint texture_id) {
+    EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (eglDisplay == EGL_NO_DISPLAY) {
+        LOGE("Failed to get EGL display");
+        return;
+    }
+
+    EGLContext eglContext = eglGetCurrentContext();
+    if (eglContext == EGL_NO_CONTEXT) {
+        LOGE("Failed to get EGL context");
+        return;
+    }
+
+    // Ensure the EGL API is set to OpenGL ES
+    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+        LOGE("Failed to bind EGL API");
+        return;
+    }
+
+    EGLint imageAttributes[] = {
+            EGL_GL_TEXTURE_LEVEL_KHR, 0, // mip map level to reference
+            EGL_IMAGE_PRESERVED_KHR, EGL_FALSE,
+            EGL_NONE
+    };
+    glBindTexture(GL_TEXTURE_2D,texture_id);
+    eglImage = eglCreateImageKHR(eglDisplay, eglContext, EGL_GL_TEXTURE_2D_KHR, reinterpret_cast<EGLClientBuffer>(texture_id), imageAttributes);
+    if (eglImage == EGL_NO_IMAGE_KHR) {
+        LOGE("Failed to create EGL image");
+        return;
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_avoid_facepoint_render_VoidRender_00024Companion_useKHR(JNIEnv *env, jobject thiz, jint texture_id) {
+    if (eglImage != nullptr) {
+        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, eglImage);
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            LOGE("glEGLImageTargetTexture2DOES failed with error: 0x%x", error);
+        }
+    } else {
+        LOGE("EGL image is not created");
+    }
 }

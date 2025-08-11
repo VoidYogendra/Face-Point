@@ -2,14 +2,25 @@ package com.avoid.facepoint.render
 
 import android.content.Context
 import android.content.res.AssetManager
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.EGL14
 import android.opengl.EGLContext
+import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
+import android.util.SizeF
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
+import com.avoid.facepoint.render.mpfilters.FaceMeshEyeMouth
+import com.avoid.facepoint.render.mpfilters.FaceMeshEyeRect
+import com.avoid.facepoint.render.mpfilters.FaceMeshResultGlRenderer
+import com.google.mediapipe.solutions.facemesh.FaceMeshResult
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -28,12 +39,16 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private external fun loadLUT(assetManager: AssetManager, mFile: String): Boolean
         private external fun createTextureLUT2D(textureID: Int, lutID: Int): Int
         private external fun createTextureLUT(textureID: Int, lutID: Int)
+        external fun makeKHR(textureID: Int)
+        external fun useKHR(textureID: Int)
         const val GL_TEXTURE_EXTERNAL_OES: Int = 36197
     }
 
     fun loadLUT(file: String) {
         Companion.loadLUT(context.assets, file)
     }
+
+    var frame = 0
 
     var filterTypes: FilterTypes = FilterTypes.DEFAULT
 
@@ -93,17 +108,26 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var textures = IntArray(1)
     private val textures2D = IntArray(1)
 
-    private var textureID = -1
+    var textureID = -1
     private var textureID2D = -1
 
     private var aspectMatrix = FloatArray(16)
     private var aspectMatrix2D = FloatArray(16)
 
-    val glRecord=GLRecord(context)
+    val glTextureManager = GLTextureManager(context)
+    val glToKHR = GLTextureManager(context)
+
+    var faceMeshResult: FaceMeshResult? = null
+    private var faceGLRender: FaceMeshResultGlRenderer? = null
+    private var faceGLRenderEyeMouth: FaceMeshEyeMouth? = null
+    private var faceGLRenderEyeRect: FaceMeshEyeRect? = null
+    private var matrix = MatrixCalc()
+    private var maskMatrix = FloatArray(16)
+    var overlayImageBitmap: Bitmap? = null
 
     private fun onSurfaceCreated2D() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -128,6 +152,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             surfaceTexture = SurfaceTexture(textureID)
 
         eglContext = EGL14.eglGetCurrentContext()
+
+        faceGLRender = FaceMeshResultGlRenderer()
+        faceGLRenderEyeMouth = FaceMeshEyeMouth()
+        faceGLRenderEyeRect = FaceMeshEyeRect()
     }
 
     override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
@@ -136,10 +164,13 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glViewport(0, 0, width, height)
 
         onSurfaceCreated2D()
+        matrix.surface(width, height)
+        matrix.frame(width, height)
+        maskMatrix = matrix.doIT(maskMatrix)
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
-        gl.glViewport(0, 0, width, height)
+//        gl.glViewport(0, 0, width, height)
         this.textureWidth = width
         this.textureHeight = height
 //        byteSize = textureWidth * textureHeight * 3
@@ -163,19 +194,21 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         )
 
 
-
         val scaleMatrix = FloatArray(16)
         Matrix.setIdentityM(scaleMatrix, 0)
         aspectMatrix2D = scaleMatrix
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
 
-        glRecord.initForRecord(width, height)
+        glTextureManager.initForRecord(width, height)
+        glToKHR.initForKHR(width, height)
     }
 
     //    private var byteSize = 0
     fun resize(textureWidth: Int, textureHeight: Int, screenWidth: Int, screenHeight: Int) {
         cameraWidth = textureWidth
         cameraHeight = textureHeight
+
+
         onDrawCallback.add {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onSurfaceChanged(screenWidth, screenHeight)
@@ -208,6 +241,21 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         }
     }
 
+    fun rotateVideo() {
+        onDrawCallback.add {
+            gl.glUseProgram(programOES)
+
+            Matrix.setRotateM(aspectMatrix, 0, 180f, 0f, 0f, 1.0f)
+            Matrix.scaleM(aspectMatrix, 0, -1.0f, 1.0f, 1.0f)
+
+            gl.glUniformMatrix4fv(matrixHandle, 1, false, aspectMatrix, 0)
+            gl.glUseProgram(0)
+        }
+    }
+
+    //    var buffer: ByteBuffer? = null
+    var readCallback: ((width: Int, height: Int) -> Unit)? = null
+
     override fun onDrawFrame(p0: GL10?) {
         //so it does not render during new setup
         synchronized(onDrawCallback) {
@@ -215,29 +263,78 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 onDrawCallback.poll()?.run()
             }
         }
-        if (framebufferName != 0) {
+        //TODO: either sync FaceMeshResult with this camera texture or use FaceMeshResult's texture instead of original camera texture
+
+        if (filterTypes.faceMesh) {
+            if (glToKHR.framebufferRecord != 0) {
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
+                onDrawToFbo(textures[0])
+            }
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
-            onDrawToFbo(textures[0])
-        }
-        if (glRecord.framebufferRecord != 0) {
-            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glRecord.framebufferRecord)
-            when (filterTypes) {
+            glToKHR.onDrawForRecord(glToKHR.recordTexture)
+            gl.glFinish()
+            sendToInference()
+        } else {
+            if (framebufferName != 0) {
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
+                onDrawToFbo(textures[0])
 
-                FilterTypes.BULGE -> {
-                    drawBULDGE(textureID2D)
-                }
-
-                else -> {
-                    onDraw(textureID2D)
-                }
             }
         }
+
+
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
-        glRecord.onDrawForRecord(glRecord.recordTexture)
+        drawFBO()
+        glTextureManager.onDrawForRecord(glTextureManager.recordTexture)
+        if (glTextureManager.framebufferRecord != 0) {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glTextureManager.framebufferRecord)
+            drawFBO()
+        }
+
+        frame++
+    }
+
+    //TODO Replace whole pipeline to interface Style,
+    // so every filter can have own class that implements all basic rendering logic
+    // i.e create , draw , delete
+    // for more cleaner code
+    private fun sendToInference() {
+        if (width <= 0) return
+
+        if (filterTypes.faceMesh) // sent drawn KHR texture to FaceMesh Model
+            readCallback?.invoke(this.width, this.height)
+
+        if (faceMeshResult != null) {
+            when (filterTypes) {
+                FilterTypes.GLASSES -> {
+                    faceGLRender!!.renderResult(faceMeshResult, maskMatrix)
+                }
+                FilterTypes.EYE_MOUTH -> {
+                    faceGLRenderEyeMouth!!.renderResult(faceMeshResult, maskMatrix)
+                }
+                FilterTypes.EYE_RECT -> {
+                    faceGLRenderEyeRect!!.renderResult(faceMeshResult, maskMatrix)
+                }
+                else -> {}
+            }
+        }
+    }
+
+    private fun drawFBO() {
         when (filterTypes) {
 
             FilterTypes.BULGE -> {
                 drawBULDGE(textureID2D)
+            }
+
+            FilterTypes.BULGE_DOUBLE -> {
+                drawBULDGEDouble(textureID2D)
+            }
+
+            FilterTypes.EYE_MOUTH -> {
+                overlayImageBitmap?.let {
+                    drawMask(glToKHR.recordTexture, textureID2D, it)
+                }
             }
 
             else -> {
@@ -245,6 +342,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             }
         }
     }
+
 
     fun onDrawToFbo(texID: Int) {
         gl.glUseProgram(programOES)
@@ -269,6 +367,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             FilterTypes.BULGE -> {
                 drawDefault(texID)
             }
+
+            else -> drawDefault(texID)
         }
 
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
@@ -292,6 +392,42 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
     }
+
+    fun saveFrame(file: File, width: Int, height: Int) {
+        // glReadPixels fills in a "direct" ByteBuffer with what is essentially big-endian RGBA
+        // data (i.e. a byte of red, followed by a byte of green...).  While the Bitmap
+        // constructor that takes an int[] wants little-endian ARGB (blue/red swapped), the
+        // Bitmap "copy pixels" method wants the same format GL provides.
+        //
+        // Ideally we'd have some way to re-use the ByteBuffer, especially if we're calling
+        // here often.
+        //
+        // Making this even more interesting is the upside-down nature of GL, which means
+        // our output will look upside down relative to what appears on screen if the
+        // typical GL conventions are used.
+        val filename = file.toString()
+        val buf = ByteBuffer.allocateDirect(width * height * 4)
+        buf.order(ByteOrder.LITTLE_ENDIAN)
+        GLES20.glReadPixels(
+            0, 0, width, height,
+            GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buf
+        )
+//        checkGlError("glReadPixels")
+        buf.rewind()
+
+        var bos: BufferedOutputStream? = null
+        try {
+            bos = BufferedOutputStream(FileOutputStream(filename))
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            bmp.copyPixelsFromBuffer(buf)
+            bmp.compress(Bitmap.CompressFormat.PNG, 90, bos)
+            bmp.recycle()
+        } finally {
+            bos?.close()
+        }
+        Log.d("IDK GG", "Saved " + width + "x" + height + " frame as '" + filename + "'")
+    }
+
 
     /**
      * Shader Crash On ->
@@ -443,8 +579,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     fun createExternalTexture() {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "main_fragOES.glsl")
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_fragOES.glsl")
 
         programOES = gl.glCreateProgram()
         gl.glAttachShader(programOES, vertexShader)
@@ -494,8 +630,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     fun createExternalTextureINVERSE() {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "grain_fragOES.glsl")
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/grain_fragOES.glsl")
 
         programOES = gl.glCreateProgram()
         gl.glAttachShader(programOES, vertexShader)
@@ -512,21 +648,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         resHandle = gl.glGetUniformLocation(programOES, "iResolution")
         timeHandle = gl.glGetUniformLocation(programOES, "iTime")
 
-//        textures = IntArray(1)
-//        gl.glGenTextures(1, textures, 0)
-//        gl.glActiveTexture(gl.GL_TEXTURE0) //not needed since it is by default
-//        gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, textures[0])
-//        gl.glTexParameteri(
-//            GL_TEXTURE_EXTERNAL_OES,
-//            gl.GL_TEXTURE_MIN_FILTER,
-//            gl.GL_LINEAR
-//        )
-//        gl.glTexParameteri(
-//            GL_TEXTURE_EXTERNAL_OES,
-//            gl.GL_TEXTURE_MAG_FILTER,
-//            gl.GL_LINEAR
-//        )
-//        textureID = textures[0]
         bindVAO()
     }
 
@@ -545,15 +666,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
-    private var centerHandle = 0
-    private var radiusHandle = 0
-    private var scaleHandle = 0
-    private var x = 0.5f
-    private var y = 0.5f
-
     fun createDefault2D() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "main_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -568,9 +683,16 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
     }
 
+
+    private var centerHandle = 0
+    private var radiusHandle = 0
+    private var scaleHandle = 0
+    private var scale = 0.5f
+    private var x = 0.5f
+    private var y = 0.5f
     fun create2DBULDGE() {
-        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
-        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "buldge_frag.glsl")
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/buldge_frag.glsl")
         program2D = gl.glCreateProgram()
         gl.glAttachShader(program2D, vertexShader2D)
         gl.glAttachShader(program2D, fragmentShader)
@@ -593,6 +715,10 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         this.y = y
     }
 
+    fun setPosSCALE(scale: Float) {
+        this.scale = scale
+    }
+
     private fun drawBULDGE(texID: Int) {
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
@@ -604,9 +730,83 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, texID)
 
-        gl.glUniform2f(centerHandle, x, y);
-        gl.glUniform1f(radiusHandle, 0.1f);
-        gl.glUniform1f(scaleHandle, 0.5f);
+        gl.glUniform2f(centerHandle, x, y)
+        gl.glUniform1f(radiusHandle, scale)
+        gl.glUniform1f(scaleHandle, 0.5f)
+
+        gl.glUniform1i(textureHandle2D, 0)
+
+        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+        gl.glBindVertexArray(0)
+    }
+
+    /**----------------------------------------------------------------------------------------------------------------------------------**/
+
+
+    /**----------------------------------------------------------------------------------------------------------------------------------**/
+
+
+    private var centerHandle2bulge1 = 0
+    private var centerHandle2bulge2 = 0
+    private var radiusHandle1bulge = 0
+    private var radiusHandle2bulge = 0
+    private var scaleHandle2bulge = 0
+    private var scale1bulge = 0.5f
+    private var scale2bulge = 0.5f
+    private var center1 = SizeF(0.5f, 0.5f)
+    private var center2 = SizeF(0.5f, 0.5f)
+    fun create2DBULDGEDouble() {
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/two_buldge.glsl")
+        program2D = gl.glCreateProgram()
+        gl.glAttachShader(program2D, vertexShader2D)
+        gl.glAttachShader(program2D, fragmentShader)
+        gl.glLinkProgram(program2D)
+        gl.glUseProgram(program2D) //use it in Codec
+
+        positionHandle2D = gl.glGetAttribLocation(program2D, "aPosition")
+        texturePositionHandle2D = gl.glGetAttribLocation(program2D, "aTexPosition")
+        textureHandle2D = gl.glGetUniformLocation(program2D, "uTexture")
+        matrixHandle2D = gl.glGetUniformLocation(program2D, "u_Matrix")
+
+        centerHandle2bulge1 = gl.glGetUniformLocation(program2D, "center1")
+        centerHandle2bulge2 = gl.glGetUniformLocation(program2D, "center2")
+
+        radiusHandle1bulge = gl.glGetUniformLocation(program2D, "radius1")
+        radiusHandle2bulge = gl.glGetUniformLocation(program2D, "radius2")
+
+        scaleHandle2bulge = gl.glGetUniformLocation(program2D, "scale")
+        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
+    }
+
+    fun setPosBULDGEDouble(x1: Float, y1: Float, x2: Float, y2: Float) {
+        center1 = SizeF(x1, y1)
+        center2 = SizeF(x2, y2)
+    }
+
+    fun setPosSCALEDouble(scale1: Float,scale2: Float) {
+        this.scale1bulge = scale1
+        this.scale2bulge = scale2
+    }
+
+    private fun drawBULDGEDouble(texID: Int) {
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
+        gl.glUseProgram(program2D)
+
+        gl.glBindVertexArray(vao2D[0])
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo2D[0])
+
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texID)
+
+        gl.glUniform2f(centerHandle2bulge1, center1.width, center1.height)
+        gl.glUniform2f(centerHandle2bulge2, center2.width, center2.height)
+        gl.glUniform1f(radiusHandle1bulge, scale1bulge)
+        gl.glUniform1f(radiusHandle2bulge, scale2bulge)
+        gl.glUniform1f(scaleHandle2bulge, 0.5f)
 
         gl.glUniform1i(textureHandle2D, 0)
 
@@ -624,15 +824,15 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var shaderType = ShaderType.sampler3D
     fun createExternalTextureLUT() {
 
-        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "main_vert.glsl")
+        vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
 
         val extensions = gl.glGetString(gl.GL_EXTENSIONS)
         if (!extensions.contains("GL_OES_texture_3D")) {
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "lut_fragOES_MKT.glsl")
+            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES_MKT.glsl")
             Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
             shaderType = ShaderType.sampler2D
         } else
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "lut_fragOES.glsl")
+            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES.glsl")
 
 
         programOES = gl.glCreateProgram()
@@ -679,9 +879,105 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
+    private var maskHandle2D = 0
+    private var overlayHandle2D = 0
+    private val overlay = IntArray(1)
+
+    private var uScreenSizeHandle2D = 0
+    private var uOverlaySizeSizeHandle2D = 0
+    private var uOverlayOffsetSizeHandle2D = 0
+    fun create2DMask() {
+        vertexShader2D = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
+        fragmentShader = compileShader(gl.GL_FRAGMENT_SHADER, "shader/mask_frag.glsl")
+        program2D = gl.glCreateProgram()
+        gl.glAttachShader(program2D, vertexShader2D)
+        gl.glAttachShader(program2D, fragmentShader)
+        gl.glLinkProgram(program2D)
+        gl.glUseProgram(program2D) //use it in Codec
+
+        positionHandle2D = gl.glGetAttribLocation(program2D, "aPosition")
+        texturePositionHandle2D = gl.glGetAttribLocation(program2D, "aTexPosition")
+        textureHandle2D = gl.glGetUniformLocation(program2D, "uTexture")
+        maskHandle2D = gl.glGetUniformLocation(program2D, "uMaskTex")
+        overlayHandle2D = gl.glGetUniformLocation(program2D, "overlayTex")
+        matrixHandle2D = gl.glGetUniformLocation(program2D, "u_Matrix")
+
+        uScreenSizeHandle2D = gl.glGetUniformLocation(program2D, "uScreenSize")
+        uOverlaySizeSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlaySize")
+        uOverlayOffsetSizeHandle2D = gl.glGetUniformLocation(program2D, "uOverlayOffset")
+
+        gl.glUniform2fv(
+            uScreenSizeHandle2D,
+            1,
+            floatArrayOf(cameraHeight.toFloat(), cameraWidth.toFloat()),
+            0
+        )
+
+        Log.e(TAG, "create2DMask: $cameraWidth $cameraHeight ")
+
+        val ff =
+            cameraHeight.toFloat() / overlayImageBitmap!!.width.toFloat()//cameraHeight is actually weight
+        val gg =
+            cameraWidth.toFloat() / overlayImageBitmap!!.height.toFloat()//cameraWidth is actually height
+
+        gl.glUniform2fv(
+            uOverlaySizeSizeHandle2D,
+            1,
+            floatArrayOf(
+                overlayImageBitmap!!.width.toFloat() * (ff),
+                overlayImageBitmap!!.height.toFloat() * (gg)
+            ),
+            0
+        )
+        gl.glUniform2fv(uOverlayOffsetSizeHandle2D, 1, floatArrayOf(ff, 0f), 0)
+
+        gl.glGenTextures(1, overlay, 0)
+        gl.glActiveTexture(gl.GL_TEXTURE2)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, overlay[0])
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+        GLUtils.texImage2D(gl.GL_TEXTURE_2D, 0, overlayImageBitmap, 0)
+
+        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
+    }
+
+    private fun drawMask(camID: Int, maskID: Int, overlayImageBitmap: Bitmap) {
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
+        gl.glUseProgram(program2D)
+
+        gl.glBindVertexArray(vao2D[0])
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo2D[0])
+
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, camID)
+
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, maskID)
+
+        gl.glActiveTexture(gl.GL_TEXTURE2)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, overlay[0])
+
+        GLUtils.texSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, overlayImageBitmap)
+
+
+        gl.glUniform1i(textureHandle2D, 0)
+        gl.glUniform1i(maskHandle2D, 1)
+        gl.glUniform1i(overlayHandle2D, 2)
+
+        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 4)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+        gl.glBindVertexArray(0)
+    }
+
+    /**----------------------------------------------------------------------------------------------------------------------------------**/
+
 
     //for recording only
-    var framebufferName = 0
+    private var framebufferName = 0
     private fun createRenderTexture(): Int {
         val args = IntArray(1)
 
