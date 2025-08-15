@@ -63,4 +63,4 @@ Want me to help you write a README badge section or a “Why OpenGL?” manifest
 A shader crash occurs when using the following uniform declaration on devices with **Mali GPUs** (commonly paired with **MediaTek CPUs**):
 
 ```glsl
-```uniform sampler3D lut;
+>uniform sampler3D lut;
