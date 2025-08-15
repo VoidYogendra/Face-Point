@@ -39,18 +39,18 @@
 
 ## 🎨 Filter Preview Grid
 
-| Filter Name | Preview                        |
-| ----------- | ------------------------------ |
-| `1_default` | ![](screenshots\1_default.png) |
+| Filter Name | Preview |
+| ----------- | ------- |
+| `1_default` | <img src="screenshots/1_default.png" style="width:200px;"/> |
 
-| Filter Name     | Preview                            | Filter Name    | Preview                           |
-| --------------- | ---------------------------------- | -------------- | --------------------------------- |
-| `2_monkey`      | ![](screenshots\2_monkey.png)      | `3_eye_censor` | ![](screenshots\3_eye_censor.png) |
-| `4_googly_eyes` | ![](screenshots\4_googly_eyes.png) | `5_chad`       | ![](screenshots\5_chad.png)       |
-| `6_glsses`      | ![](screenshots\6_glsses.png)      | `7_invert`     | ![](screenshots\7_invert.png)     |
-| `8_b&w`         | ![](screenshots\8_b&w.png)         | `9_cine_still` | ![](screenshots\9_cine_still.png) |
-| `10_sunset`     | ![](screenshots\10_sunset.png)     | `11_sunset_2`  | ![](screenshots\11_sunset_2.png)  |
-| `12_BW1`        | ![](screenshots\12_BW1.png)        | Coming Soon... | ☁️☁️☁️☁️☁️☁️☁️                    |
+| Filter Name       | Preview                                                                 | Filter Name       | Preview                                                                  |
+|-------------------|-------------------------------------------------------------------------|-------------------|---------------------------------------------------------------------------|
+| `2_monkey`        | <img src="screenshots/2_monkey.png" style="width:200px;"/>              | `3_eye_censor`    | <img src="screenshots/3_eye_censor.png" style="width:200px;"/>           |
+| `4_googly_eyes`   | <img src="screenshots/4_googly_eyes.png" style="width:200px;"/>         | `5_chad`          | <img src="screenshots/5_chad.png" style="width:200px;"/>                 |
+| `6_glsses`        | <img src="screenshots/6_glsses.png" style="width:200px;"/>              | `7_invert`        | <img src="screenshots/7_invert.png" style="width:200px;"/>               |
+| `8_b&w`           | <img src="screenshots/8_b&w.png" style="width:200px;"/>                 | `9_cine_still`    | <img src="screenshots/9_cine_still.png" style="width:200px;"/>           |
+| `10_sunset`       | <img src="screenshots/10_sunset.png" style="width:200px;"/>             | `11_sunset_2`     | <img src="screenshots/11_sunset_2.png" style="width:200px;"/>            |
+| `12_BW1`          | <img src="screenshots/12_BW1.png" style="width:200px;"/>                | Coming Soon...    | ☁️☁️☁️☁️☁️☁️☁️                                                           |
 
 # 🐞 Known Issues
 
@@ -59,5 +59,4 @@
 ### 🔍 Issue Summary
 
 A shader crash occurs when using the following uniform declaration on devices with **Mali GPUs** (commonly paired with **MediaTek CPUs**):
-
-> uniform sampler3D lut;
+>uniform sampler3D lut;
