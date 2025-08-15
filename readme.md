@@ -43,7 +43,7 @@ Want me to help you write a README badge section or a “Why OpenGL?” manifest
 
 | Filter Name | Preview                        |
 | ----------- | ------------------------------ |
-| `1_default` | ![](./screenshots/1_default.png) |
+| `1_default` | <img src="screenshots/1_default.png" style="width:200px;"/> |
 
 | Filter Name     | Preview                            | Filter Name    | Preview                           |
 | --------------- | ---------------------------------- | -------------- | --------------------------------- |
