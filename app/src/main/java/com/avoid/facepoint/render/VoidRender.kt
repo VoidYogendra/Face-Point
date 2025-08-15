@@ -51,6 +51,7 @@ import java.util.Queue
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLES31 as gl
+import androidx.core.graphics.createBitmap
 
 class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
@@ -440,9 +441,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         var bos: BufferedOutputStream? = null
         try {
             bos = BufferedOutputStream(FileOutputStream(filename))
-            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bmp = createBitmap(width, height)
             bmp.copyPixelsFromBuffer(buf)
-            bmp.compress(Bitmap.CompressFormat.PNG, 90, bos)
+            bmp.compress(Bitmap.CompressFormat.JPEG, 90, bos)
             bmp.recycle()
         } finally {
             bos?.close()
