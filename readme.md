@@ -20,6 +20,7 @@
 - 🎥 **Encoder Logic**: Based on [EncodeAndMuxTest.java](https://bigflake.com/mediacodec/EncodeAndMuxTest.java.txt) from Bigflake — a robust reference implementation for MediaCodec + MediaMuxer workflows
 - 🖼️ **Offscreen Rendering**: Uses `EglSurfaceBase` and `EglCore` from Google’s [Grafika test app](https://github.com/google/grafika)
 - 🧠 **Face Landmark Detection**: Utilizes Google’s [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/android) — official model and API used for high-accuracy facial tracking
+- 🎨 **3D LUT Filter**: Inspired by [Svante Lindgren’s guide](https://svnte.se/3d-lut) on creating GPU-accelerated 3D LUTs from `.CUBE` files using OpenGL `GL_TEXTURE_3D` — enables DaVinci Resolve or Photoshop-style color grading directly in-app. LUTs can be embedded through code (for now), allowing custom cinematic looks and stylized filters with real-time performance.
 
 ---
 
