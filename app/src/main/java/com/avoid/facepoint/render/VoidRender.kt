@@ -12,6 +12,7 @@ import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
 import android.util.SizeF
+import androidx.core.graphics.createBitmap
 import com.avoid.facepoint.model.FilterTypes
 import com.avoid.facepoint.model.ShaderType
 import com.avoid.facepoint.render.mpfilters.FaceMeshEyeMouth
@@ -418,9 +419,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         var bos: BufferedOutputStream? = null
         try {
             bos = BufferedOutputStream(FileOutputStream(filename))
-            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bmp = createBitmap(width, height)
             bmp.copyPixelsFromBuffer(buf)
-            bmp.compress(Bitmap.CompressFormat.PNG, 90, bos)
+            bmp.compress(Bitmap.CompressFormat.JPEG, 90, bos)
             bmp.recycle()
         } finally {
             bos?.close()
