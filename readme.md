@@ -43,16 +43,16 @@ Want me to help you write a README badge section or a “Why OpenGL?” manifest
 
 | Filter Name | Preview                        |
 | ----------- | ------------------------------ |
-| `1_default` | ![](screenshots\1_default.png) |
+| `1_default` | ![](./screenshots/1_default.png) |
 
 | Filter Name     | Preview                            | Filter Name    | Preview                           |
 | --------------- | ---------------------------------- | -------------- | --------------------------------- |
-| `2_monkey`      | ![](screenshots\2_monkey.png)      | `3_eye_censor` | ![](screenshots\3_eye_censor.png) |
-| `4_googly_eyes` | ![](screenshots\4_googly_eyes.png) | `5_chad`       | ![](screenshots\5_chad.png)       |
-| `6_glsses`      | ![](screenshots\6_glsses.png)      | `7_invert`     | ![](screenshots\7_invert.png)     |
-| `8_b&w`         | ![](screenshots\8_b&w.png)         | `9_cine_still` | ![](screenshots\9_cine_still.png) |
-| `10_sunset`     | ![](screenshots\10_sunset.png)     | `11_sunset_2`  | ![](screenshots\11_sunset_2.png)  |
-| `12_BW1`        | ![](screenshots\12_BW1.png)        | Coming Soon... | ☁️☁️☁️☁️☁️☁️☁️                    |
+| `2_monkey`      | ![](./screenshots/2_monkey.png)      | `3_eye_censor` | ![](./screenshots/3_eye_censor.png) |
+| `4_googly_eyes` | ![](./screenshots/4_googly_eyes.png) | `5_chad`       | ![](./screenshots/5_chad.png)       |
+| `6_glsses`      | ![](./screenshots/6_glsses.png)      | `7_invert`     | ![](./screenshots/7_invert.png)     |
+| `8_b&w`         | ![](./screenshots/8_b&w.png)         | `9_cine_still` | ![](./screenshots/9_cine_still.png) |
+| `10_sunset`     | ![](./screenshots/10_sunset.png)     | `11_sunset_2`  | ![](./screenshots/11_sunset_2.png)  |
+| `12_BW1`        | ![](./screenshots/12_BW1.png)        | Coming Soon... | ☁️☁️☁️☁️☁️☁️☁️                    |
 
 # 🐞 Known Issues
 
