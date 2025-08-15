@@ -37,8 +37,6 @@
 - Designed for real-time responsiveness on mobile GPUs
 - Ideal for developers who want full control over rendering and effects
 
-Want me to help you write a README badge section or a “Why OpenGL?” manifesto next? 😎
-
 ## 🎨 Filter Preview Grid
 
 | Filter Name | Preview                        |
