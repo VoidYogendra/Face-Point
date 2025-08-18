@@ -59,5 +59,5 @@
 
 ### 🔍 Issue Summary
 
-A shader crash occurs when using the following uniform declaration on devices with **Mali GPUs** (commonly paired with **MediaTek CPUs**):
->uniform sampler3D lut;
+On some Mali GPUs (often found with MediaTek CPUs), `sampler3D` isn’t supported.  
+As a result, when we fall back to using `sampler2D` for LUTs, the colours can appear slightly inaccurate.
