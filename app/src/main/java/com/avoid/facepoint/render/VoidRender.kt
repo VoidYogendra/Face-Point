@@ -829,7 +829,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         val extensions = gl.glGetString(gl.GL_EXTENSIONS)
         if (!extensions.contains("GL_OES_texture_3D")) {
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES_MKT.glsl")
+            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES_mali.glsl")
             Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
             shaderType = ShaderType.sampler2D
         } else

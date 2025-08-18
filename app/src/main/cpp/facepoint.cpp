@@ -36,14 +36,18 @@
 //    }
 
 void convert3DTo2DLUT(float* lut_data, int size) {
-    int totalSize = size * size * size * 3;
-    float* temp = (float*)malloc(totalSize * sizeof(float));  // Temporary buffer
+    const int totalSize = size * size * size * 3;
+    float* temp = (float*)malloc(totalSize * sizeof(float));
+    if (!temp) return;
 
     for (int b = 0; b < size; ++b) {
         for (int g = 0; g < size; ++g) {
             for (int r = 0; r < size; ++r) {
-                int src_index = (b * size * size + g * size + r) * 3;
-                int dest_index = (g * size + r + b * size) * 3;
+                // source index in .cube order
+                const int src_index  = (b * size * size + g * size + r) * 3;
+                // dest index in 2D (width = size, height = size*size)
+                const int dest_index = ((g + b * size) * size + r) * 3;
+
                 temp[dest_index + 0] = lut_data[src_index + 0];
                 temp[dest_index + 1] = lut_data[src_index + 1];
                 temp[dest_index + 2] = lut_data[src_index + 2];
@@ -51,9 +55,8 @@ void convert3DTo2DLUT(float* lut_data, int size) {
         }
     }
 
-    // Copy back to the original array
     memcpy(lut_data, temp, totalSize * sizeof(float));
-    free(temp);  // Free temp buffer
+    free(temp);
 }
 
 
