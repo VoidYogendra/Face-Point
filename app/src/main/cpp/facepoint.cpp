@@ -99,19 +99,15 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_loadLUT(JNIEnv *env, j
         return false;
     }
 
-    // Read entire file content
+    env->ReleaseStringUTFChars(mFile,assetFileName);
+
     size_t fileSize = AAsset_getLength(asset);
     char* fileContent = new char[fileSize + 1];
     AAsset_read(asset, fileContent, fileSize);
     fileContent[fileSize] = '\0';  // Null-terminate the string
 
-    // Close asset
     AAsset_close(asset);
 
-//    float* lut_data = nullptr;
-//    int size = 0;
-
-    // Process file content line by line
     char* line = strtok(fileContent, "\n");
     while (line) {
         if (strncmp(line, "#LUT size", 9) == 0) {
@@ -139,10 +135,6 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_loadLUT(JNIEnv *env, j
         line = strtok(nullptr, "\n");
     }
 
-//    LOGE("DONE MASTER ++ %d",size);
-//    for (int i=0;i<size*size*size;i++)
-//        LOGE("DONE MASTER ++ R %f %f %f",lut_data[i*3+0],lut_data[i*3+1],lut_data[i*3+2]);
-    // Cleanup
     delete[] fileContent;
     return lut_data != nullptr;
 }
@@ -158,27 +150,15 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_createTextureLUT2D(JNI
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, size, size * size, 0, GL_RGB, GL_FLOAT, lut_data);
 
-// Load data to texture
-    glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RGB,
-            size, size,
-            0,
-            GL_RGB,
-            GL_FLOAT,
-            lut_data
-    );
-
-
-// Set sampling parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R,     GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+    delete[] lut_data;
+    lut_data = nullptr;
 
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture2D);
     glTexParameteri(
@@ -193,56 +173,6 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_createTextureLUT2D(JNI
     );
     return size;
 }
-
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_avoid_facepoint_render_VoidRender_00024Companion_createTextureLUT(JNIEnv *env,
-                                                                           jobject thiz,int textureID,int lutID) {
-// Create texture
-    GLuint texture=lutID;
-    GLuint texture2D=textureID;
-
-    glBindTexture(GL_TEXTURE_3D, texture);
-
-
-// Load data to texture
-    glTexImage3D(
-            GL_TEXTURE_3D,
-            0,
-            GL_RGB,
-            size, size, size,
-            0,
-            GL_RGB,
-            GL_FLOAT,
-            lut_data
-    );
-
-
-// Set sampling parameters
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R,     GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-    glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture2D);
-    glTexParameteri(
-            GL_TEXTURE_EXTERNAL_OES,
-            GL_TEXTURE_MIN_FILTER,
-            GL_LINEAR
-    );
-    glTexParameteri(
-            GL_TEXTURE_EXTERNAL_OES,
-            GL_TEXTURE_MAG_FILTER,
-            GL_LINEAR
-    );
-}
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_avoid_facepoint_MainActivity_00024Companion_destroy(JNIEnv *env, jobject thiz) {
-    delete[] lut_data;
-}
-
 
 EGLImageKHR eglImage = nullptr;
 

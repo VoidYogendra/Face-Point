@@ -836,10 +836,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        destroy()
-    }
 
     private var isCameraInitialized = false
     override fun onPause() {
@@ -861,7 +857,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         internal const val TAG = "MainActivity"
-        private external fun destroy()
         const val GL_VERSION = 3
 
         init {

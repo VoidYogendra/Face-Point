@@ -34,8 +34,8 @@ import android.opengl.GLUtils
 import android.opengl.Matrix
 import android.util.Log
 import android.util.SizeF
+import androidx.core.graphics.createBitmap
 import com.avoid.facepoint.model.FilterTypes
-import com.avoid.facepoint.model.ShaderType
 import com.avoid.facepoint.render.mpfilters.FaceMeshEyeMouth
 import com.avoid.facepoint.render.mpfilters.FaceMeshEyeRect
 import com.avoid.facepoint.render.mpfilters.FaceMeshResultGlRenderer
@@ -51,7 +51,6 @@ import java.util.Queue
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLES31 as gl
-import androidx.core.graphics.createBitmap
 
 class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
@@ -61,14 +60,14 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         private const val STRIDES = 4 * FLOAT_SIZE_BYTES
         private external fun loadLUT(assetManager: AssetManager, mFile: String): Boolean
         private external fun createTextureLUT2D(textureID: Int, lutID: Int): Int
-        private external fun createTextureLUT(textureID: Int, lutID: Int)
         external fun makeKHR(textureID: Int)
         external fun useKHR(textureID: Int)
         const val GL_TEXTURE_EXTERNAL_OES: Int = 36197
+        const val DEFAULT_FRAMEBUFFER: Int = 0
     }
 
     fun loadLUT(file: String) {
-        Companion.loadLUT(context.assets, file)
+        loadLUT(context.assets, file)
     }
 
     var frame = 0
@@ -169,7 +168,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
 
-        createExternalTexture()
+        textureID=createExternalTexture()
 
         if (surfaceTexture == null)
             surfaceTexture = SurfaceTexture(textureID)
@@ -235,7 +234,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         onDrawCallback.add {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
             onSurfaceChanged(screenWidth, screenHeight)
-            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, DEFAULT_FRAMEBUFFER)
         }
 
         surfaceTexture?.setDefaultBufferSize(textureWidth, textureHeight)
@@ -286,10 +285,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
                 onDrawCallback.poll()?.run()
             }
         }
-        //TODO: either sync FaceMeshResult with this camera texture or use FaceMeshResult's texture instead of original camera texture
-
         if (filterTypes.faceMesh) {
-            if (glToKHR.framebufferRecord != 0) {
+            if (glToKHR.framebufferRecord != DEFAULT_FRAMEBUFFER) { // <- draw to fbo
                 gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glToKHR.framebufferRecord)
                 onDrawToFbo(textures[0])
             }
@@ -298,22 +295,21 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.glFinish()
             sendToInference()
         } else {
-            if (framebufferName != 0) {
+            if (framebufferName != DEFAULT_FRAMEBUFFER) { // <- draw to fbo
                 gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, framebufferName)
                 onDrawToFbo(textures[0])
 
             }
         }
 
-
-        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, DEFAULT_FRAMEBUFFER)// <- drawFBO() contains camera texture pixels which fbo (framebufferName/framebufferRecord)
+        // drew to textureID2D and then draw textureID2D to screen(DEFAULT_FRAMEBUFFER)
         drawFBO()
         glTextureManager.onDrawForRecord(glTextureManager.recordTexture)
-        if (glTextureManager.framebufferRecord != 0) {
+        if (glTextureManager.framebufferRecord != DEFAULT_FRAMEBUFFER) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glTextureManager.framebufferRecord)
             drawFBO()
         }
-
         frame++
     }
 
@@ -375,9 +371,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo[0])
 
         when (filterTypes) {
-            FilterTypes.DEFAULT -> {
-                drawDefault(texID)
-            }
 
             FilterTypes.LUT -> {
                 drawLUT(texID)
@@ -385,10 +378,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
             FilterTypes.INVERSE -> {
                 drawINVERSE(texID)
-            }
-
-            FilterTypes.BULGE -> {
-                drawDefault(texID)
             }
 
             else -> drawDefault(texID)
@@ -600,7 +589,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
 
-    fun createExternalTexture() {
+    fun createExternalTexture(): Int {
 
         vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
         fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/main_fragOES.glsl")
@@ -632,8 +621,8 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             gl.GL_TEXTURE_MAG_FILTER,
             gl.GL_LINEAR
         )
-        textureID = textures[0]
         bindVAO()
+        return textures[0]
     }
 
 
@@ -809,7 +798,7 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         center2 = SizeF(x2, y2)
     }
 
-    fun setPosSCALEDouble(scale1: Float,scale2: Float) {
+    fun setPosSCALEDouble(scale1: Float, scale2: Float) {
         this.scale1bulge = scale1
         this.scale2bulge = scale2
     }
@@ -844,19 +833,18 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
     /**----------------------------------------------------------------------------------------------------------------------------------**/
     //lut
-    private var shaderType = ShaderType.sampler3D
+//    private var shaderType = ShaderType.sampler2D
     fun createExternalTextureLUT() {
 
         vertexShader = compileShader(gl.GL_VERTEX_SHADER, "shader/main_vert.glsl")
 
-        val extensions = gl.glGetString(gl.GL_EXTENSIONS)
-        if (!extensions.contains("GL_OES_texture_3D")) {
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES_mali.glsl")
-            Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
-            shaderType = ShaderType.sampler2D
-        } else
-            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES.glsl")
-
+//        val extensions = gl.glGetString(gl.GL_EXTENSIONS)
+//        if (!extensions.contains("GL_OES_texture_3D")) {
+//        } else
+//            fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES.glsl")
+        fragmentShaderOES = compileShader(gl.GL_FRAGMENT_SHADER, "shader/lut_fragOES_mali.glsl")
+        Log.e("GL ERROR", "GL_OES_texture_3D NOT SUPPORTED")
+//            shaderType = ShaderType.sampler2D
 
         programOES = gl.glCreateProgram()
         gl.glAttachShader(programOES, vertexShader)
@@ -874,24 +862,25 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         textures = IntArray(2)
         gl.glGenTextures(1, textures, 1)
-        textures[0] = textureID
-        if (shaderType == ShaderType.sampler2D) {
-            val size = createTextureLUT2D(textures[0], textures[1])
-            gl.glUniform1f(gl.glGetUniformLocation(programOES, "size"), size.toFloat())
-            Log.e("AdrenoGLES-0", "createExternalTextureLUT: $size")
-        } else createTextureLUT(textures[0], textures[1])
+        textureID
+//        if (shaderType == ShaderType.sampler2D) {
+        val size = createTextureLUT2D(textures[0], textures[1])
+        gl.glUniform1f(gl.glGetUniformLocation(programOES, "size"), size.toFloat())
+        Log.e("AdrenoGLES-0", "createExternalTextureLUT: $size")
+//        } else createTextureLUT(textures[0], textures[1])
 
         bindVAO()
     }
 
     private fun drawLUT(texID: Int) {
+        /*TODO ("Fix bindTextureImage: clearing GL error: 0x502 maybe use 2d texture of camera instead of OES Texture")*/
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, texID)
         surfaceTexture?.updateTexImage()
 
         gl.glActiveTexture(gl.GL_TEXTURE1)
         gl.glBindTexture(
-            if (shaderType == ShaderType.sampler2D) gl.GL_TEXTURE_2D else gl.GL_TEXTURE_3D,
+            /*if (shaderType == ShaderType.sampler2D)*/ gl.GL_TEXTURE_2D /*else gl.GL_TEXTURE_3D*/,
             textures[1]
         )
 

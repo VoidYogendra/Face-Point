@@ -5,6 +5,19 @@
 > ⚡ No OpenCV. No fluff. Just raw OpenGL power.
 
 ---
+~~# 🐞 Known Issues~~ [FIXED]
+
+~~## 🧨 Shader Crash: `sampler3D` on Mali GPUs~~
+
+~~### 🔍 Issue Summary~~
+
+~~On some Mali GPUs (often found with MediaTek CPUs), `sampler3D` isn’t supported.~~  
+~~As a result, when we fall back to using `sampler2D` for LUTs, the colours can appear slightly inaccurate.~~
+
+### 🛠️ Fix Log
+
+- **18-09-2025** → ✅ Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
+---
 
 ### 🧵 Tech Stack Highlights
 
@@ -53,11 +66,15 @@
 | `10_sunset`       | <img src="screenshots/10_sunset.png" style="width:200px;"/>             | `11_sunset_2`     | <img src="screenshots/11_sunset_2.png" style="width:200px;"/>            |
 | `12_BW1`          | <img src="screenshots/12_BW1.png" style="width:200px;"/>                | Coming Soon...    | ☁️☁️☁️☁️☁️☁️☁️                                                           |
 
-# 🐞 Known Issues
+~~# 🐞 Known Issues~~ [FIXED] 
 
-## 🧨 Shader Crash: `sampler3D` on Mali GPUs
+~~## 🧨 Shader Crash: `sampler3D` on Mali GPUs~~
 
-### 🔍 Issue Summary
+~~### 🔍 Issue Summary~~
 
-On some Mali GPUs (often found with MediaTek CPUs), `sampler3D` isn’t supported.  
-As a result, when we fall back to using `sampler2D` for LUTs, the colours can appear slightly inaccurate.
+~~On some Mali GPUs (often found with MediaTek CPUs), `sampler3D` isn’t supported.~~  
+~~As a result, when we fall back to using `sampler2D` for LUTs, the colours can appear slightly inaccurate.~~
+
+### 🛠️ Fix Log
+
+- **18-09-2025** → ✅ Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.

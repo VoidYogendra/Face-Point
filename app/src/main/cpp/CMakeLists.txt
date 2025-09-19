@@ -38,4 +38,4 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         GLESv2
         EGL
         android
-    log)
+        log "-Wl,-z,max-page-size=16384")

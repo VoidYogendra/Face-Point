@@ -21,14 +21,16 @@ void main() {
 
     float b0 = floor(bIndex);
     float b1 = min(b0 + 1.0, sizeM1);
-    float f  = bIndex - b0;
+    float f = bIndex - b0;
 
-    float invSize   = 1.0 / size;
+    // Normalize coordinates for 2D LUT
+    float invSize = 1.0 / size;
     float invSize2D = 1.0 / (size * size);
 
-    float x  = (rIndex + 0.5) * invSize;
-    float y0 = (gIndex + b0 * size + 0.5) * invSize2D;
-    float y1 = (gIndex + b1 * size + 0.5) * invSize2D;
+    // Remove 0.5 offset to align with 3D texture sampling
+    float x = rIndex * invSize;
+    float y0 = (gIndex + b0 * size) * invSize2D;
+    float y1 = (gIndex + b1 * size) * invSize2D;
 
     vec3 c0 = texture2D(lut, vec2(x, y0)).rgb;
     vec3 c1 = texture2D(lut, vec2(x, y1)).rgb;
