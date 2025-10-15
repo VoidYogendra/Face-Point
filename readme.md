@@ -18,6 +18,7 @@
 
 - **18-09-2025** → ✅ Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
 - **19-09-2025** → ✅ Fixed ** fixed Abstract screen glitch noise on last BW1.cube filter** by replacing it with original `BW1.cube` file.
+- **15-10-2025** → ✅ Fixed **`glTexImage2D` glError (0x502)** on Mali GPUs glError (0x502) is now fixed on LUT filters.
 ---
 
 ### 🧵 Tech Stack Highlights
@@ -54,28 +55,33 @@
 
 ## 🎨 Filter Preview Grid
 
-| Filter Name | Preview |
-| ----------- | ------- |
+| Filter Name | Preview                                                     |
+|-------------|-------------------------------------------------------------|
 | `1_default` | <img src="screenshots/1_default.png" style="width:200px;"/> |
 
-| Filter Name       | Preview                                                                 | Filter Name       | Preview                                                                  |
-|-------------------|-------------------------------------------------------------------------|-------------------|---------------------------------------------------------------------------|
-| `2_monkey`        | <img src="screenshots/2_monkey.png" style="width:200px;"/>              | `3_eye_censor`    | <img src="screenshots/3_eye_censor.png" style="width:200px;"/>           |
-| `4_googly_eyes`   | <img src="screenshots/4_googly_eyes.png" style="width:200px;"/>         | `5_chad`          | <img src="screenshots/5_chad.png" style="width:200px;"/>                 |
-| `6_glsses`        | <img src="screenshots/6_glsses.png" style="width:200px;"/>              | `7_invert`        | <img src="screenshots/7_invert.png" style="width:200px;"/>               |
-| `8_b&w`           | <img src="screenshots/8_b&w.png" style="width:200px;"/>                 | `9_cine_still`    | <img src="screenshots/9_cine_still.png" style="width:200px;"/>           |
-| `10_sunset`       | <img src="screenshots/10_sunset.png" style="width:200px;"/>             | `11_sunset_2`     | <img src="screenshots/11_sunset_2.png" style="width:200px;"/>            |
-| `12_BW1`          | <img src="screenshots/12_BW1.png" style="width:200px;"/>                | Coming Soon...    | ☁️☁️☁️☁️☁️☁️☁️                                                           |
+| Filter Name     | Preview                                                         | Filter Name    | Preview                                                        |
+|-----------------|-----------------------------------------------------------------|----------------|----------------------------------------------------------------|
+| `2_monkey`      | <img src="screenshots/2_monkey.png" style="width:200px;"/>      | `3_eye_censor` | <img src="screenshots/3_eye_censor.png" style="width:200px;"/> |
+| `4_googly_eyes` | <img src="screenshots/4_googly_eyes.png" style="width:200px;"/> | `5_chad`       | <img src="screenshots/5_chad.png" style="width:200px;"/>       |
+| `6_glsses`      | <img src="screenshots/6_glsses.png" style="width:200px;"/>      | `7_invert`     | <img src="screenshots/7_invert.png" style="width:200px;"/>     |
+| `8_b&w`         | <img src="screenshots/8_b&w.png" style="width:200px;"/>         | `9_cine_still` | <img src="screenshots/9_cine_still.png" style="width:200px;"/> |
+| `10_sunset`     | <img src="screenshots/10_sunset.png" style="width:200px;"/>     | `11_sunset_2`  | <img src="screenshots/11_sunset_2.png" style="width:200px;"/>  |
+| `12_BW1`        | <img src="screenshots/12_BW1.png" style="width:200px;"/>        | Coming Soon... | ☁️☁️☁️☁️☁️☁️☁️                                                 |
 
-~~# 🐞 Known Issues~~ [FIXED] 
+### 🚀 Getting Started
 
-~~## 🧨 Shader Crash: `sampler3D` on Mali GPUs~~
+Follow these steps to clone the repository and run the project in Android Studio.
 
-~~### 🔍 Issue Summary~~
+#### 📋 Prerequisites
 
-~~On some Mali GPUs (often found with MediaTek CPUs), `sampler3D` isn’t supported.~~  
-~~As a result, when we fall back to using `sampler2D` for LUTs, the colours can appear slightly inaccurate.~~
+- [Android Studio](https://developer.android.com/studio) (latest version recommended)
+- An Android device with developer mode enabled
 
-### 🛠️ Fix Log
+#### 🛠️ Installation
 
-- **18-09-2025** → ✅ Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
+1.  **Clone the repository:**
+    Open your terminal and run the following Git command: 
+```bash
+git clone https://github.com/VoidYogendra/Face-Point.git
+``` 
+    
