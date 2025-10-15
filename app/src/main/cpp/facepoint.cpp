@@ -138,6 +138,13 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_loadLUT(JNIEnv *env, j
     delete[] fileContent;
     return lut_data != nullptr;
 }
+#define TAG "GLES_ERROR_CHECK"
+
+static void checkGlError(const char* op) {
+    for (GLint error = glGetError(); error; error = glGetError()) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "after %s() glError (0x%x)\n", op, error);
+    }
+}
 //int GL_TEXTURE_EXTERNAL_OES= 36197;
 extern "C"
 JNIEXPORT jint JNICALL
@@ -150,7 +157,8 @@ Java_com_avoid_facepoint_render_VoidRender_00024Companion_createTextureLUT2D(JNI
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, size, size * size, 0, GL_RGB, GL_FLOAT, lut_data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, size, size * size, 0, GL_RGB, GL_FLOAT, lut_data);
+    checkGlError("glTexImage2D with GL_RGB32F"); // It's good practice to update the debug string
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
