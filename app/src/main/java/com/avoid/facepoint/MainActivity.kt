@@ -372,6 +372,7 @@ class MainActivity : AppCompatActivity() {
                     btn.setColorFilter(Color.RED)
                     isLongPress = true
                     isRecord = true // Start recording
+                    rec()
                 }
             } else if (motionEvent.action == MotionEvent.ACTION_UP) {
                 val btn = view as ImageButton
@@ -402,77 +403,55 @@ class MainActivity : AppCompatActivity() {
                 sourceContent()
             }
         }
-
-        val encoder = Encoder()
-        var record = false
-
+    }
+    val encoder = Encoder()
+    fun rec() {
         CoroutineScope(Dispatchers.IO).launch {
             val fps = 60
             val glTextureManager = GLTextureManager(context)
-            var frame = 0
-            var outputPath: String? = null
-            while (true) {
-                val frameTimeNanos = System.nanoTime()
-                if (isRecord) {
-                    if (!record) {
-
-                        val timeStamp =
-                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            var outputPath: String?
+            val timeStamp =
+                SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
 
 
-                        // Create the filename with the timestamp
-                        val fileName = String.format(
-                            Locale.getDefault(),
-                            "%dX%d_%s.mp4",
-                            renderer.width,
-                            renderer.height,
-                            timeStamp
-                        )
-                        outputPath = File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            fileName
-                        ).toString()
-                        encoder.prepareEncoder(
-                            fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
-                            GL_VERSION, outputPath
-                        )
-                        handler.post {
-                            encoder.mInputSurface!!.makeCurrent()
-                            glTextureManager.initForRecord(
-                                renderer.cameraHeight,
-                                renderer.cameraWidth
-                            )
-                        }
-                        record = true
-                    } else {
-                        while (frame >= renderer.frame)
-                            delay(1)
-                        frame = renderer.frame
-                        handler.post {
-                            encoder.drainEncoder(false)
-                            if (record) {
-                                glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
-                                encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
-                                encoder.mInputSurface!!.swapBuffers()
-                            }
-                        }
-                    }
+            // Create the filename with the timestamp
+            val fileName = String.format(
+                Locale.getDefault(),
+                "%dX%d_%s.mp4",
+                renderer.width,
+                renderer.height,
+                timeStamp
+            )
+            outputPath = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                fileName
+            ).toString()
+
+            handler.post {
+                encoder.prepareEncoder(
+                    fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
+                    GL_VERSION, outputPath
+                )
+                encoder.startRecording()
+                encoder.requestKeyFrame()
+                encoder.mInputSurface!!.makeCurrent()
+                glTextureManager.initForRecord(
+                    renderer.cameraHeight,
+                    renderer.cameraWidth
+                )
+                while (isRecord) {
+                    val frameTimeNanos = System.nanoTime()
+                    glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
+                    encoder.setPresentationTimeAndSwap(frameTimeNanos)
                 }
-
-                if (!isRecord && record) {
-                    record = false
-                    handler.post {
-                        encoder.drainEncoder(true)
-                        encoder.releaseEncoder()
-                        Log.e(TAG, "startCamera: DONE")
-                    }
-                    outputPath?.let {
-                        updateContent(it)
-                    }
+                encoder.stopRecording()
+                Log.e(TAG, "startCamera: DONE")
+                updateContent(outputPath)
+                runOnUiThread {
+                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
                 }
             }
         }
-
     }
 
     private val executorImage: ExecutorService = Executors.newSingleThreadExecutor()
