@@ -39,12 +39,8 @@
 
 ---
 
-### 🚫 Current Limitations
-
-- 🎙️ **Audio recording is not supported yet**
-  - Planned upgrade: **voice changer integration**
-  - MediaCodec logic will be **migrated from Kotlin to C++** to eliminate processing overhead and boost performance
-
+### NEW 
+- Now Supports Audio Recording in This Testing Branch 
 ---
 
 ### 🔥 Why It Stands Out
