@@ -25,7 +25,6 @@ package com.avoid.facepoint
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -42,7 +41,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
-import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.util.Range
@@ -75,11 +73,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
-import com.avoid.facepoint.render.encoder.Encoder
 import com.avoid.facepoint.render.GLTextureManager
 import com.avoid.facepoint.render.VoidRender
 import com.avoid.facepoint.render.egl.EglCore
 import com.avoid.facepoint.render.egl.OffscreenSurface
+import com.avoid.facepoint.render.encoder.Encoder
 import com.avoid.facepoint.ui.ButtonAdapter
 import com.google.mediapipe.framework.AppTextureFrame
 import com.google.mediapipe.solutions.facemesh.FaceMesh
@@ -106,6 +104,7 @@ class MainActivity : AppCompatActivity() {
     private var isRecord = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
+    private var lastItem = 0
     private var isGrantedCam = false
     private var isGrantedStorage = false
     private var cameraProvider: ProcessCameraProvider? = null
@@ -195,41 +194,36 @@ class MainActivity : AppCompatActivity() {
 
 
         val dataSet = arrayOf(
-            FilterItem(R.drawable.a, FilterTypes.DEFAULT, renderer, null),
-            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, renderer, null),
-            FilterItem(R.drawable.c, FilterTypes.EYE_RECT, renderer, null),
-            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE, renderer, null),
-            FilterItem(R.drawable.e, FilterTypes.BULGE, renderer, null),
-            FilterItem(R.drawable.f, FilterTypes.GLASSES, renderer, null),
-            FilterItem(R.drawable.g, FilterTypes.INVERSE, renderer, null),
+            FilterItem(R.drawable.a, FilterTypes.DEFAULT,  null),
+            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH,  null),
+            FilterItem(R.drawable.c, FilterTypes.EYE_RECT,  null),
+            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE,  null),
+            FilterItem(R.drawable.e, FilterTypes.BULGE,  null),
+            FilterItem(R.drawable.f, FilterTypes.GLASSES,  null),
+            FilterItem(R.drawable.g, FilterTypes.INVERSE,  null),
             FilterItem(
                 R.drawable.h,
                 FilterTypes.LUT,
-                renderer,
                 "lut/b&w.cube"
             ),
             FilterItem(
                 R.drawable.i,
                 FilterTypes.LUT,
-                renderer,
                 "lut/CineStill.cube"
             ),
             FilterItem(
                 R.drawable.j,
                 FilterTypes.LUT,
-                renderer,
                 "lut/Sunset.cube"
             ),
             FilterItem(
                 R.drawable.k,
                 FilterTypes.LUT,
-                renderer,
                 "lut/Sunset2.cube"
             ),
             FilterItem(
                 R.drawable.l,
                 FilterTypes.LUT,
-                renderer,
                 "lut/BW1.cube"
             ),
         )
@@ -245,17 +239,17 @@ class MainActivity : AppCompatActivity() {
         snap.attachToRecyclerView(recyclerView)
         var item = 0
         val linearLayoutManager = recyclerView.layoutManager!! as LinearLayoutManager
+        val render=renderer
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
                 val visibleItemCount: Int = linearLayoutManager.childCount
                 val firstVisibleItemPosition: Int =
                     linearLayoutManager.findFirstVisibleItemPosition()
-                val lastItem = firstVisibleItemPosition + visibleItemCount
+                lastItem = firstVisibleItemPosition + visibleItemCount
                 if (lastItem != item) {
                     Log.e(TAG, "onScrolled: $lastItem")
                     val filter = adapter.dataSet[lastItem - 1]
-                    val render = filter.render
                     render.onDrawCallback.add {
                         render.filterTypes = filter.filterTypes
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -404,6 +398,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     val encoder = Encoder()
     fun rec() {
         CoroutineScope(Dispatchers.IO).launch {
@@ -829,8 +824,15 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (!isCameraInitialized && cameraProvider != null) {
             sourceContent()
-            if (mainActivityBinding.RvFilterList.adapter != null)
+            if (mainActivityBinding.RvFilterList.adapter != null) {
                 mainActivityBinding.RvFilterList.scrollToPosition(0)
+                CoroutineScope(Dispatchers.Default).launch {
+                    delay(1000)
+                    runOnUiThread {
+                        mainActivityBinding.RvFilterList.scrollToPosition(lastItem+1)
+                    }
+                }
+            }
         }
     }
 

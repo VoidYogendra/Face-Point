@@ -23,13 +23,18 @@ http://www.apache.org/licenses/LICENSE-2.0
 package com.avoid.facepoint.render.encoder
 
 import android.annotation.SuppressLint
-import android.media.*
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.media.MediaMuxer
+import android.media.MediaRecorder
 import android.opengl.EGLContext
 import android.os.Bundle
 import android.util.Log
 import com.avoid.facepoint.render.CodecInputSurface
 import java.io.IOException
-import java.lang.RuntimeException
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
