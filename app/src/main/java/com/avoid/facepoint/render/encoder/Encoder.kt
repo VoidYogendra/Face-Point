@@ -101,7 +101,6 @@ class Encoder {
      */
     @Synchronized
     fun prepareEncoder(
-        frameRate: Int,
         width: Int,
         height: Int,
         eglContext: EGLContext,
@@ -113,11 +112,16 @@ class Encoder {
 
         // VIDEO encoder (surface)
         val videoFormat = MediaFormat.createVideoFormat(VIDEO_MIME, width, height)
-        val bitrate = (BPP * frameRate * width * height).toInt()
+        val bitrate = when {
+            width * height >= 1920 * 1080 -> 8_000_000
+            width * height >= 1280 * 720  -> 5_000_000
+            else                          -> 3_000_000
+        }
+
         videoFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT,
             MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
         videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-        videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
+        videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, -1)
         videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL)
 
         if (VERBOSE) Log.d(TAG, "video format: $videoFormat")

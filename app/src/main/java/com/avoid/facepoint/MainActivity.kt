@@ -87,6 +87,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -402,7 +403,6 @@ class MainActivity : AppCompatActivity() {
     val encoder = Encoder()
     fun rec() {
         CoroutineScope(Dispatchers.IO).launch {
-            val fps = 60
             val glTextureManager = GLTextureManager(context)
             var outputPath: String?
             val timeStamp =
@@ -424,7 +424,7 @@ class MainActivity : AppCompatActivity() {
 
             handler.post {
                 encoder.prepareEncoder(
-                    fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
+                    renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
                     GL_VERSION, outputPath
                 )
                 encoder.startRecording()
@@ -434,17 +434,23 @@ class MainActivity : AppCompatActivity() {
                     renderer.cameraHeight,
                     renderer.cameraWidth
                 )
-                while (isRecord) {
-                    val frameTimeNanos = System.nanoTime()
-                    glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
-                    encoder.setPresentationTimeAndSwap(frameTimeNanos)
+                renderer.getSurfaceTexture()?.setOnFrameAvailableListener {
+                    if (!isRecord) return@setOnFrameAvailableListener
+                    handler.post {
+                        val frameTimeNanos = System.nanoTime()
+                        glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
+                        encoder.setPresentationTimeAndSwap(frameTimeNanos)
+                    }
                 }
-                encoder.stopRecording()
-                Log.e(TAG, "startCamera: DONE")
-                updateContent(outputPath)
-                runOnUiThread {
-                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                }
+            }
+            while (isRecord) {
+                yield()
+            }
+            encoder.stopRecording()
+            Log.e(TAG, "startCamera: DONE")
+            updateContent(outputPath)
+            runOnUiThread {
+                Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -603,12 +609,6 @@ class MainActivity : AppCompatActivity() {
         player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(res: VideoSize) {
                 super.onVideoSizeChanged(res)
-                val (mWidth, mHeight) = resizeToFitScreen(
-                    res.width,
-                    res.height,
-                    renderer.width,
-                    renderer.height
-                )
                 renderer.resize(res.width, res.height, renderer.width, renderer.height)
 
             }
