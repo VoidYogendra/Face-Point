@@ -121,6 +121,10 @@ class Encoder {
         videoFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT,
             MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
         videoFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+        videoFormat.setInteger(
+            MediaFormat.KEY_BITRATE_MODE,
+            MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
+        )
         videoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, -1)
         videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL)
 

@@ -401,7 +401,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     val encoder = Encoder()
-    fun rec() {
+    fun rec() { //TODO Video back flicker
         CoroutineScope(Dispatchers.IO).launch {
             val glTextureManager = GLTextureManager(context)
             var outputPath: String?
@@ -428,7 +428,6 @@ class MainActivity : AppCompatActivity() {
                     GL_VERSION, outputPath
                 )
                 encoder.startRecording()
-                encoder.requestKeyFrame()
                 encoder.mInputSurface!!.makeCurrent()
                 glTextureManager.initForRecord(
                     renderer.cameraHeight,
@@ -436,8 +435,9 @@ class MainActivity : AppCompatActivity() {
                 )
                 renderer.getSurfaceTexture()?.setOnFrameAvailableListener {
                     if (!isRecord) return@setOnFrameAvailableListener
+                    encoder.requestKeyFrame() // to fix video starting delay
+                    val frameTimeNanos = System.nanoTime()
                     handler.post {
-                        val frameTimeNanos = System.nanoTime()
                         glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
                         encoder.setPresentationTimeAndSwap(frameTimeNanos)
                     }
@@ -447,6 +447,7 @@ class MainActivity : AppCompatActivity() {
                 yield()
             }
             encoder.stopRecording()
+            glTextureManager.release()
             Log.e(TAG, "startCamera: DONE")
             updateContent(outputPath)
             runOnUiThread {

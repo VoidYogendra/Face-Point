@@ -521,6 +521,41 @@ class GLTextureManager(private val context: Context) {
         GLES31.glBindBuffer(GLES31.GL_ARRAY_BUFFER, 0)
         GLES31.glBindVertexArray(0)
     }
+
+    fun release() {
+        if (program2DRec != 0) {
+            GLES31.glDeleteProgram(program2DRec)
+            program2DRec = 0
+        }
+        if (vertexShader2DRec != 0) {
+            GLES31.glDeleteShader(vertexShader2DRec)
+            vertexShader2DRec = 0
+        }
+        if (fragmentShaderRec != 0) {
+            GLES31.glDeleteShader(fragmentShaderRec)
+            fragmentShaderRec = 0
+        }
+
+        // 2. Delete Buffers (VBO, VAO)
+        if (vbo2DRec[0] != 0) {
+            GLES31.glDeleteBuffers(1, vbo2DRec, 0)
+            vbo2DRec[0] = 0
+        }
+        if (vao2DRec[0] != 0) {
+            GLES31.glDeleteVertexArrays(1, vao2DRec, 0)
+            vao2DRec[0] = 0
+        }
+        if (recordTexture != -1) {
+            val textures = intArrayOf(recordTexture)
+            GLES31.glDeleteTextures(1, textures, 0)
+            recordTexture = -1
+        }
+        if (framebufferRecord != -1) {
+            val fbos = intArrayOf(framebufferRecord)
+            GLES31.glDeleteFramebuffers(1, fbos, 0)
+            framebufferRecord = -1
+        }
+    }
     /**
      * Shader Crash On ->
      * CPU Mediatek
