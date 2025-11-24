@@ -195,13 +195,13 @@ class MainActivity : AppCompatActivity() {
 
 
         val dataSet = arrayOf(
-            FilterItem(R.drawable.a, FilterTypes.DEFAULT,  null),
-            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH,  null),
-            FilterItem(R.drawable.c, FilterTypes.EYE_RECT,  null),
-            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE,  null),
-            FilterItem(R.drawable.e, FilterTypes.BULGE,  null),
-            FilterItem(R.drawable.f, FilterTypes.GLASSES,  null),
-            FilterItem(R.drawable.g, FilterTypes.INVERSE,  null),
+            FilterItem(R.drawable.a, FilterTypes.DEFAULT, null),
+            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, null),
+            FilterItem(R.drawable.c, FilterTypes.EYE_RECT, null),
+            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE, null),
+            FilterItem(R.drawable.e, FilterTypes.BULGE, null),
+            FilterItem(R.drawable.f, FilterTypes.GLASSES, null),
+            FilterItem(R.drawable.g, FilterTypes.INVERSE, null),
             FilterItem(
                 R.drawable.h,
                 FilterTypes.LUT,
@@ -240,7 +240,7 @@ class MainActivity : AppCompatActivity() {
         snap.attachToRecyclerView(recyclerView)
         var item = 0
         val linearLayoutManager = recyclerView.layoutManager!! as LinearLayoutManager
-        val render=renderer
+        val render = renderer
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
@@ -254,91 +254,7 @@ class MainActivity : AppCompatActivity() {
                     render.onDrawCallback.add {
                         render.filterTypes = filter.filterTypes
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
-                        when (filter.filterTypes) {
-                            FilterTypes.DEFAULT -> {
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.createDefault2D()
-                            }
-
-                            FilterTypes.LUT -> {
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.loadLUT(filter.lutFileName!!)
-                                render.createExternalTextureLUT()
-                                render.createDefault2D()
-                            }
-
-                            FilterTypes.INVERSE -> {
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTextureINVERSE()
-                                render.createDefault2D()
-                            }
-
-                            FilterTypes.BULGE -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.create2DBULDGE()
-                            }
-
-                            FilterTypes.BULGE_DOUBLE -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.create2DBULDGEDouble()
-                            }
-
-                            FilterTypes.GLASSES -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.createDefault2D()
-                            }
-
-                            FilterTypes.EYE_MOUTH -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
-                                val matrix = Matrix()
-                                matrix.preScale(-1f, 1f)
-                                matrix.postRotate(180f)
-                                render.overlayImageBitmap = Bitmap.createBitmap(
-                                    source,
-                                    0,
-                                    0,
-                                    source.width,
-                                    source.height,
-                                    matrix,
-                                    true
-                                )
-                                render.create2DMask()
-
-                            }
-
-                            FilterTypes.EYE_RECT -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.createDefault2D()
-                            }
-                        }
+                        setFilter(filter)
                         if (BuildConfig.DEMO)
                             renderer.rotateVideo()
                         else
@@ -396,6 +312,94 @@ class MainActivity : AppCompatActivity() {
             }
             runOnUiThread {
                 sourceContent()
+            }
+        }
+    }
+
+    fun setFilter(filter: FilterItem) {
+        when (filter.filterTypes) {
+            FilterTypes.DEFAULT -> {
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTexture()
+                renderer.createDefault2D()
+            }
+
+            FilterTypes.LUT -> {
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.loadLUT(filter.lutFileName!!)
+                renderer.createExternalTextureLUT()
+                renderer.createDefault2D()
+            }
+
+            FilterTypes.INVERSE -> {
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTextureINVERSE()
+                renderer.createDefault2D()
+            }
+
+            FilterTypes.BULGE -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTexture()
+                renderer.create2DBULDGE()
+            }
+
+            FilterTypes.BULGE_DOUBLE -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTexture()
+                renderer.create2DBULDGEDouble()
+            }
+
+            FilterTypes.GLASSES -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTexture()
+                renderer.createDefault2D()
+            }
+
+            FilterTypes.EYE_MOUTH -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTexture()
+                val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
+                val matrix = Matrix()
+                matrix.preScale(-1f, 1f)
+                matrix.postRotate(180f)
+                renderer.overlayImageBitmap = Bitmap.createBitmap(
+                    source,
+                    0,
+                    0,
+                    source.width,
+                    source.height,
+                    matrix,
+                    true
+                )
+                renderer.create2DMask()
+
+            }
+
+            FilterTypes.EYE_RECT -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                renderer.deleteCurrentProgram()
+                renderer.deleteCurrentProgram2D()
+
+                renderer.createExternalTexture()
+                renderer.createDefault2D()
             }
         }
     }
@@ -516,8 +520,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startCamera() {
-        if (isCameraInitialized) return
-        isCameraInitialized = true
         Log.e(TAG, "startCamera: XXXXXXXXX")
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProvider = cameraProviderFuture.get()
@@ -569,6 +571,12 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    private fun bindCamera() {
+        cameraProvider?.unbindAll()
+        cameraProvider?.bindToLifecycle(this, cameraSelector, preview)
+    }
+
+
     fun updateContent(file: String) {
         MediaScannerConnection.scanFile(
             context,
@@ -585,8 +593,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startDemoVideo() {
-        if (isCameraInitialized) return
-        isCameraInitialized = true
         Log.e(TAG, "startCamera: XXXXXXXXX")
         val surfaceTexture = renderer.getSurfaceTexture()
         val surface = Surface(surfaceTexture)
@@ -811,26 +817,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-    private var isCameraInitialized = false
     override fun onPause() {
         super.onPause()
-        if (cameraProvider != null) {
-            cameraProvider!!.unbindAll()
-            isCameraInitialized = false
-        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (!isCameraInitialized && cameraProvider != null) {
+        if (cameraProvider != null) {
             sourceContent()
-            if (mainActivityBinding.RvFilterList.adapter != null) {
+            if (mainActivityBinding.RvFilterList.adapter != null) { //<- TODO Fix this crap
                 mainActivityBinding.RvFilterList.scrollToPosition(0)
                 CoroutineScope(Dispatchers.Default).launch {
                     delay(1000)
                     runOnUiThread {
-                        mainActivityBinding.RvFilterList.scrollToPosition(lastItem+1)
+                        mainActivityBinding.RvFilterList.scrollToPosition(lastItem - 1)
                     }
                 }
             }

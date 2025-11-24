@@ -357,17 +357,14 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
 
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, finalOutputFramebufferName)
         drawFBO()
-        gl.glFinish()
 
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, DEFAULT_FRAMEBUFFER)// <- drawFBO() contains camera texture pixels which fbo (framebufferName/framebufferRecord)
         // drew to textureID2D and then draw textureID2D to screen(DEFAULT_FRAMEBUFFER)
         onDraw(finalOutputTextureID)
-        gl.glFinish()
         glTextureManager.onDrawForRecord(glTextureManager.recordTexture)
         if (glTextureManager.framebufferRecord != DEFAULT_FRAMEBUFFER) {
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, glTextureManager.framebufferRecord)
             onDraw(finalOutputTextureID)
-            gl.glFinish()
         }
         frame++
     }
