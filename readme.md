@@ -16,9 +16,9 @@
 
 ### Fix Log
 
-- **18-09-2025** → ✅ Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
-- **19-09-2025** → ✅ Fixed ** fixed Abstract screen glitch noise on last BW1.cube filter** by replacing it with original `BW1.cube` file.
-- **15-10-2025** → ✅ Fixed **`glTexImage2D` glError (0x502)** on Mali GPUs glError (0x502) is now fixed on LUT filters.
+- **18-09-2025** → Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
+- **19-09-2025** → Fixed ** fixed Abstract screen glitch noise on last BW1.cube filter** by replacing it with original `BW1.cube` file.
+- **15-10-2025** → Fixed **`glTexImage2D` glError (0x502)** on Mali GPUs glError (0x502) is now fixed on LUT filters.
 ---
 
 ### Tech Stack Highlights
