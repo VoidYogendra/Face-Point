@@ -2,58 +2,58 @@
 
 **Face-Point** is the **first open-source real-time face filter app** built using **MediaPipe FaceMesh** for high-performance, GPU-accelerated effects — and it’s blazing fast thanks to its **pure OpenGL** rendering pipeline.
 
-> ⚡ No OpenCV. No fluff. Just raw OpenGL power.
+> No OpenCV. No fluff. Just raw OpenGL power.
 
 ---
 ~~# 🐞 Known Issues~~ [FIXED]
 
-~~## 🧨 Shader Crash: `sampler3D` on Mali GPUs~~
+~~##  Shader Crash: `sampler3D` on Mali GPUs~~
 
-~~### 🔍 Issue Summary~~
+~~###  Issue Summary~~
 
 ~~On some Mali GPUs (often found with MediaTek CPUs), `sampler3D` isn’t supported.~~  
 ~~As a result, when we fall back to using `sampler2D` for LUTs, the colours can appear slightly inaccurate.~~
 
-### 🛠️ Fix Log
+### Fix Log
 
 - **18-09-2025** → ✅ Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
 - **19-09-2025** → ✅ Fixed ** fixed Abstract screen glitch noise on last BW1.cube filter** by replacing it with original `BW1.cube` file.
 - **15-10-2025** → ✅ Fixed **`glTexImage2D` glError (0x502)** on Mali GPUs glError (0x502) is now fixed on LUT filters.
 ---
 
-### 🧵 Tech Stack Highlights
+### Tech Stack Highlights
 
-- 🧠 **MediaPipe FaceMesh** for facial landmark detection
-- 🎮 **Pure OpenGL** for rendering — no OpenCV involved
-- 📱 Optimized for Android with native performance
-- 🧩 Modular design for custom filters and effects
-
----
-
-### 📚 Credits & References
-
-- 🎥 **Encoder Logic**: Based on [EncodeAndMuxTest.java](https://bigflake.com/mediacodec/EncodeAndMuxTest.java.txt) from Bigflake — a robust reference implementation for MediaCodec + MediaMuxer workflows
-- 🖼️ **Offscreen Rendering**: Uses `EglSurfaceBase` and `EglCore` from Google’s [Grafika test app](https://github.com/google/grafika)
-- 🧠 **Face Landmark Detection**: Utilizes Google’s [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/android) — official model and API used for high-accuracy facial tracking
-- 🎨 **3D LUT Filter**: Inspired by [Svante Lindgren’s guide](https://svnte.se/3d-lut) on creating GPU-accelerated 3D LUTs from `.CUBE` files using OpenGL `GL_TEXTURE_3D` — enables DaVinci Resolve or Photoshop-style color grading directly in-app. LUTs can be embedded through code (for now), allowing custom cinematic looks and stylized filters with real-time performance.
+- **MediaPipe FaceMesh** for facial landmark detection
+- **Pure OpenGL** for rendering — no OpenCV involved
+- Optimized for Android with native performance
+- Modular design for custom filters and effects
 
 ---
 
-### 🚫 Current Limitations
+###  Credits & References
 
-- 🎙️ **Audio recording is not supported yet**
+- **Encoder Logic**: Based on [EncodeAndMuxTest.java](https://bigflake.com/mediacodec/EncodeAndMuxTest.java.txt) from Bigflake — a robust reference implementation for MediaCodec + MediaMuxer workflows
+-  **Offscreen Rendering**: Uses `EglSurfaceBase` and `EglCore` from Google’s [Grafika test app](https://github.com/google/grafika)
+-  **Face Landmark Detection**: Utilizes Google’s [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/android) — official model and API used for high-accuracy facial tracking
+-  **3D LUT Filter**: Inspired by [Svante Lindgren’s guide](https://svnte.se/3d-lut) on creating GPU-accelerated 3D LUTs from `.CUBE` files using OpenGL `GL_TEXTURE_3D` — enables DaVinci Resolve or Photoshop-style color grading directly in-app. LUTs can be embedded through code (for now), allowing custom cinematic looks and stylized filters with real-time performance.
+
+---
+
+###  Current Limitations
+
+- **Audio recording is not supported yet**
   - Planned upgrade: **voice changer integration**
   - MediaCodec logic will be **migrated from Kotlin to C++** to eliminate processing overhead and boost performance
 
 ---
 
-### 🔥 Why It Stands Out
+### Why It Stands Out
 
 - Built from scratch with precision and performance in mind
 - Designed for real-time responsiveness on mobile GPUs
 - Ideal for developers who want full control over rendering and effects
 
-## 🎨 Filter Preview Grid
+## Filter Preview Grid
 
 | Filter Name | Preview                                                     |
 |-------------|-------------------------------------------------------------|
@@ -72,12 +72,12 @@
 
 Follow these steps to clone the repository and run the project in Android Studio.
 
-#### 📋 Prerequisites
+#### Prerequisites
 
 - [Android Studio](https://developer.android.com/studio) (latest version recommended)
 - An Android device with developer mode enabled
 
-#### 🛠️ Installation
+#### Installation
 
 1.  **Clone the repository:**
     Open your terminal and run the following Git command: 
