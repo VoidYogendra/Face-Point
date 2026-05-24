@@ -25,7 +25,6 @@ package com.avoid.facepoint
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -35,14 +34,12 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.media.MediaScannerConnection
 import android.net.Uri
-import android.opengl.EGL14
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
-import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import android.util.Range
@@ -57,6 +54,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -75,15 +73,24 @@ import androidx.recyclerview.widget.RecyclerView
 import com.avoid.facepoint.databinding.MainActivityBinding
 import com.avoid.facepoint.model.FilterItem
 import com.avoid.facepoint.model.FilterTypes
-import com.avoid.facepoint.render.encoder.Encoder
 import com.avoid.facepoint.render.GLTextureManager
+import com.avoid.facepoint.render.GPUFilter
 import com.avoid.facepoint.render.VoidRender
 import com.avoid.facepoint.render.egl.EglCore
 import com.avoid.facepoint.render.egl.OffscreenSurface
+import com.avoid.facepoint.render.encoder.Encoder
+import com.avoid.facepoint.render.mpfilters.BulgeFilter
+import com.avoid.facepoint.render.mpfilters.BulgeFilterEyes
+import com.avoid.facepoint.render.mpfilters.Default2DFilter
+import com.avoid.facepoint.render.mpfilters.DefaultOESFilter
+import com.avoid.facepoint.render.mpfilters.EyeMouthMaskFilter
+import com.avoid.facepoint.render.mpfilters.InverseOESFilter
+import com.avoid.facepoint.render.mpfilters.LutOESFilter
 import com.avoid.facepoint.ui.ButtonAdapter
-import com.google.mediapipe.framework.AppTextureFrame
-import com.google.mediapipe.solutions.facemesh.FaceMesh
-import com.google.mediapipe.solutions.facemesh.FaceMeshOptions
+import com.google.mediapipe.examples.facelandmarker.FaceLandmarkerHelper
+import com.google.mediapipe.examples.facelandmarker.FaceLandmarkerHelper.Companion.DELEGATE_GPU
+import com.google.mediapipe.examples.facelandmarker.FaceLandmarkerHelper.LandmarkerListener
+import com.google.mediapipe.tasks.vision.core.RunningMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -103,18 +110,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var renderer: VoidRender
     private lateinit var context: Context
     private lateinit var mainActivityBinding: MainActivityBinding
-    private var isRecord = false
+    private var isRecording = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
     private var isGrantedCam = false
     private var isGrantedStorage = false
     private var cameraProvider: ProcessCameraProvider? = null
 
+    var item = 0
 
     private val handlerThread = HandlerThread("TEST").apply { start() }
     private val handler = Handler(handlerThread.looper)
     private val resolutionSelector = ResolutionSelector.Builder()
-        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY) // Prefer 16:9, but fallback if needed
+        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY) // Prefer 16:9, but fallback if needed
         .build()
 
     private val preview = Preview.Builder()
@@ -138,7 +146,7 @@ class MainActivity : AppCompatActivity() {
                     data = Uri.fromParts("package", this@MainActivity.packageName, null)
                 }
                 requestPermission.launch(intent)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                 requestPermission.launch(intent)
             }
@@ -152,11 +160,11 @@ class MainActivity : AppCompatActivity() {
         if (Environment.isExternalStorageManager()) {
             //Manage External Storage Permissions Granted
             isGrantedStorage = true
-            Log.d(TAG, "onActivityResult: Manage External Storage Permissions Granted");
+            Log.d(TAG, "onActivityResult: Manage External Storage Permissions Granted")
         } else {
             isGrantedStorage = false
             Toast.makeText(this@MainActivity, "Storage Permissions Denied", Toast.LENGTH_SHORT)
-                .show();
+                .show()
         }
     }
 
@@ -195,41 +203,38 @@ class MainActivity : AppCompatActivity() {
 
 
         val dataSet = arrayOf(
-            FilterItem(R.drawable.a, FilterTypes.DEFAULT, renderer, null),
-            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, renderer, null),
-            FilterItem(R.drawable.c, FilterTypes.EYE_RECT, renderer, null),
-            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE, renderer, null),
-            FilterItem(R.drawable.e, FilterTypes.BULGE, renderer, null),
-            FilterItem(R.drawable.f, FilterTypes.GLASSES, renderer, null),
-            FilterItem(R.drawable.g, FilterTypes.INVERSE, renderer, null),
+            FilterItem(R.drawable.a, FilterTypes.DEFAULT, null),
+            FilterItem(R.drawable.e, FilterTypes.BULGE, null),
+            FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE, null),
+            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, null),
+//            FilterItem(R.drawable.c, FilterTypes.EYE_RECT,  null),
+//            FilterItem(R.drawable.f, FilterTypes.GLASSES,  null),
+            FilterItem(R.drawable.g, FilterTypes.INVERSE, null),
             FilterItem(
                 R.drawable.h,
                 FilterTypes.LUT,
-                renderer,
                 "lut/b&w.cube"
             ),
             FilterItem(
                 R.drawable.i,
                 FilterTypes.LUT,
-                renderer,
                 "lut/CineStill.cube"
             ),
             FilterItem(
                 R.drawable.j,
                 FilterTypes.LUT,
-                renderer,
+
                 "lut/Sunset.cube"
             ),
             FilterItem(
                 R.drawable.k,
                 FilterTypes.LUT,
-                renderer,
+
                 "lut/Sunset2.cube"
             ),
             FilterItem(
                 R.drawable.l,
                 FilterTypes.LUT,
-                renderer,
                 "lut/BW1.cube"
             ),
         )
@@ -243,7 +248,6 @@ class MainActivity : AppCompatActivity() {
         recyclerView.layoutManager = linearLayout
         recyclerView.adapter = adapter
         snap.attachToRecyclerView(recyclerView)
-        var item = 0
         val linearLayoutManager = recyclerView.layoutManager!! as LinearLayoutManager
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
@@ -255,74 +259,53 @@ class MainActivity : AppCompatActivity() {
                 if (lastItem != item) {
                     Log.e(TAG, "onScrolled: $lastItem")
                     val filter = adapter.dataSet[lastItem - 1]
-                    val render = filter.render
+                    val render = renderer
                     render.onDrawCallback.add {
                         render.filterTypes = filter.filterTypes
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+                        var oesFilter: GPUFilter? = null
+                        var filter2D: GPUFilter? = null
                         when (filter.filterTypes) {
                             FilterTypes.DEFAULT -> {
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.createDefault2D()
+                                oesFilter = DefaultOESFilter(context)
+                                filter2D = Default2DFilter(context)
                             }
 
                             FilterTypes.LUT -> {
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
                                 render.loadLUT(filter.lutFileName!!)
-                                render.createExternalTextureLUT()
-                                render.createDefault2D()
+                                oesFilter = LutOESFilter(context, renderer)
+                                filter2D = Default2DFilter(context)
                             }
 
                             FilterTypes.INVERSE -> {
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTextureINVERSE()
-                                render.createDefault2D()
+                                oesFilter = InverseOESFilter(context, renderer)
+                                filter2D = Default2DFilter(context)
                             }
 
                             FilterTypes.BULGE -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.create2DBULDGE()
+                                oesFilter = DefaultOESFilter(context)
+                                filter2D = BulgeFilter(context)
                             }
 
                             FilterTypes.BULGE_DOUBLE -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.create2DBULDGEDouble()
+                                oesFilter = DefaultOESFilter(context)
+                                filter2D = BulgeFilterEyes(context)
                             }
 
                             FilterTypes.GLASSES -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
 
-                                render.createExternalTexture()
-                                render.createDefault2D()
                             }
 
                             FilterTypes.EYE_MOUTH -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
                                 val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
                                 val matrix = Matrix()
                                 matrix.preScale(-1f, 1f)
                                 matrix.postRotate(180f)
-                                render.overlayImageBitmap = Bitmap.createBitmap(
+                                val overlayImageBitmap = Bitmap.createBitmap(
                                     source,
                                     0,
                                     0,
@@ -331,19 +314,17 @@ class MainActivity : AppCompatActivity() {
                                     matrix,
                                     true
                                 )
-                                render.create2DMask()
-
+                                oesFilter = EyeMouthMaskFilter(context, overlayImageBitmap)
+                                filter2D = Default2DFilter(context)
                             }
 
                             FilterTypes.EYE_RECT -> {
                                 glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                render.deleteCurrentProgram()
-                                render.deleteCurrentProgram2D()
-
-                                render.createExternalTexture()
-                                render.createDefault2D()
                             }
                         }
+                        if (oesFilter != null && filter2D != null)
+                            render.setFilters(oesFilter, filter2D)
+
                         if (BuildConfig.DEMO)
                             renderer.rotateVideo()
                         else
@@ -371,13 +352,13 @@ class MainActivity : AppCompatActivity() {
                     delay(500) // 500ms delay for long press
                     btn.setColorFilter(Color.RED)
                     isLongPress = true
-                    isRecord = true // Start recording
+                    isRecording = true // Start recording
                 }
             } else if (motionEvent.action == MotionEvent.ACTION_UP) {
                 val btn = view as ImageButton
                 btn.setColorFilter(Color.WHITE)
                 if (isLongPress) {
-                    isRecord = false // Stop recording
+                    isRecording = false // Stop recording
                 } else {
                     takePicture() // Call the function to take a picture
                 }
@@ -396,7 +377,7 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Default).launch {
             while (!isGrantedCam || !isGrantedStorage) {
                 delay(0)
-                Log.e(TAG, "init: XXXXXXXXX $isGrantedCam $isGrantedStorage")
+                Log.e(TAG, "init:  $isGrantedCam $isGrantedStorage")
             }
             runOnUiThread {
                 sourceContent()
@@ -413,7 +394,7 @@ class MainActivity : AppCompatActivity() {
             var outputPath: String? = null
             while (true) {
                 val frameTimeNanos = System.nanoTime()
-                if (isRecord) {
+                if (isRecording) {
                     if (!record) {
 
                         val timeStamp =
@@ -459,7 +440,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                if (!isRecord && record) {
+                if (!isRecording && record) {
                     record = false
                     handler.post {
                         encoder.drainEncoder(true)
@@ -478,6 +459,7 @@ class MainActivity : AppCompatActivity() {
     private val executorImage: ExecutorService = Executors.newSingleThreadExecutor()
     private var mOffscreenSurfaceImage: OffscreenSurface? = null
     private var glSaveImage: GLTextureManager? = null
+    private var imageAnalyzer: ImageAnalysis? = null
 
     private fun takePicture() {
         mainActivityBinding.BtnRec.visibility = View.INVISIBLE
@@ -537,7 +519,7 @@ class MainActivity : AppCompatActivity() {
     private fun startCamera() {
         if (isCameraInitialized) return
         isCameraInitialized = true
-        Log.e(TAG, "startCamera: XXXXXXXXX")
+        Log.e(TAG, "startCamera:")
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProvider = cameraProviderFuture.get()
         cameraProviderFuture.addListener({
@@ -569,9 +551,24 @@ class MainActivity : AppCompatActivity() {
             }
             preview.surfaceProvider = surfaceProvider
 
+            imageAnalyzer =
+                ImageAnalysis.Builder().setResolutionSelector(resolutionSelector)
+                    .setTargetRotation(rotation)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .build()
+                    .also {
+                        it.setAnalyzer(backgroundExecutor) { image ->
+                            faceLandmarkerHelper.detectLiveStream(
+                                imageProxy = image,
+                                isFrontCamera = cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA
+                            )
+                        }
+                    }
+
 
             cameraProvider!!.unbindAll()
-            cameraProvider!!.bindToLifecycle(this, cameraSelector, preview)
+            cameraProvider!!.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
             mainActivityBinding.BtnSwitchCamera.setOnClickListener {
                 cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
                     renderer.rotate(true)
@@ -582,7 +579,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 cameraProvider!!.unbindAll()
-                cameraProvider!!.bindToLifecycle(this, cameraSelector, preview)
+                cameraProvider!!.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
             }
         }, ContextCompat.getMainExecutor(this))
 
@@ -606,7 +603,7 @@ class MainActivity : AppCompatActivity() {
     private fun startDemoVideo() {
         if (isCameraInitialized) return
         isCameraInitialized = true
-        Log.e(TAG, "startCamera: XXXXXXXXX")
+        Log.e(TAG, "startCamera:")
         val surfaceTexture = renderer.getSurfaceTexture()
         val surface = Surface(surfaceTexture)
 
@@ -629,12 +626,12 @@ class MainActivity : AppCompatActivity() {
         player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(res: VideoSize) {
                 super.onVideoSizeChanged(res)
-                val (mWidth, mHeight) = resizeToFitScreen(
-                    res.width,
-                    res.height,
-                    renderer.width,
-                    renderer.height
-                )
+//                val (mWidth, mHeight) = resizeToFitScreen(
+//                    res.width,
+//                    res.height,
+//                    renderer.width,
+//                    renderer.height
+//                )
                 renderer.resize(res.width, res.height, renderer.width, renderer.height)
 
             }
@@ -698,141 +695,127 @@ class MainActivity : AppCompatActivity() {
         return Pair(normalizedX, normalizedY)
     }
 
-    private var facemesh: FaceMesh? = null
-    private var mOffscreenSurface: OffscreenSurface? = null
-    private var executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private lateinit var faceLandmarkerHelper: FaceLandmarkerHelper
+    private lateinit var backgroundExecutor: ExecutorService
+
 
     private fun setupStreamingModePipeline() {
+        backgroundExecutor = Executors.newSingleThreadExecutor()
+        backgroundExecutor.execute {
+            faceLandmarkerHelper = FaceLandmarkerHelper(
+                context = context,
+                runningMode = RunningMode.LIVE_STREAM,
+                currentDelegate = DELEGATE_GPU,
+                faceLandmarkerHelperListener = object : LandmarkerListener {
+                    override fun onError(error: String, errorCode: Int) {
 
-        val glTextureManager = GLTextureManager(context)
-        facemesh =
-            FaceMesh(
-                this,
-                FaceMeshOptions.builder()
-                    .setStaticImageMode(false)
-                    .setRefineLandmarks(true)
-                    .setRunOnGpu(true)
-                    .build()
-            )
-        facemesh!!.setErrorListener { message: String, _: RuntimeException? ->
-            Log.e(
-                TAG,
-                "MediaPipe Face Mesh error:$message"
-            )
-        }
+                    }
 
-        facemesh!!.setResultListener { faceMeshResult ->
-            when (renderer.filterTypes) {
-                FilterTypes.BULGE -> {
-                    if (faceMeshResult.multiFaceLandmarks().size > 0) {
-                        val x0 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[0].x
-                        val y0 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[0].y
+                    override fun onEmpty() {
+                        glSurface.requestRender()
+                    }
 
-                        val x152 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[152].x
-                        val y152 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[152].y
+                    override fun onResults(resultBundle: FaceLandmarkerHelper.ResultBundle) {
 
-// Calculate Euclidean distance
-                        val faceScale =
-                            (sqrt(((x152 - x0) * (x152 - x0) + (y152 - y0) * (y152 - y0)).toDouble())) * 2
+                        val faceLandmarkerResult = resultBundle.result
+//                        if (faceLandmarkerResult.faceLandmarks().isNotEmpty()) {
+//                            val x0 = faceLandmarkerResult.faceLandmarks()[0][0].x()
+//                            val y0 = faceLandmarkerResult.faceLandmarks()[0][0].y()
+//                            Log.e(TAG, "permissions: $x0  -   $y0  , ${renderer.filterTypes}")
+//                        }
+
+                        when (renderer.filterTypes) {
+                            FilterTypes.BULGE -> {
+                                val x0 = faceLandmarkerResult.faceLandmarks()[0][0].x()
+                                val y0 = faceLandmarkerResult.faceLandmarks()[0][0].y()
+
+                                val x152 = faceLandmarkerResult.faceLandmarks()[0][152].x()
+                                val y152 = faceLandmarkerResult.faceLandmarks()[0][152].y()
+
+                                // Calculate Euclidean distance
+                                val faceScale =
+                                    (sqrt(((x152 - x0) * (x152 - x0) + (y152 - y0) * (y152 - y0)).toDouble())) * 2
+
+                                val (newX, newY) = normalizeTouch(
+                                    x0 * renderer.width,
+                                    y0 * renderer.height,
+                                    renderer.width.toFloat(),
+                                    renderer.height.toFloat()
+                                )
+                                val filter = renderer.current2DFilter
+                                if (filter is BulgeFilter) {
+                                    filter.setPosBulge(newX, newY)
+                                    filter.setPosScale(faceScale.toFloat())
+                                }
+                            }
+
+                            FilterTypes.BULGE_DOUBLE -> {
+
+                                //468 right 473 left center
+                                val x468 = faceLandmarkerResult.faceLandmarks()[0][468].x()
+                                val y468 = faceLandmarkerResult.faceLandmarks()[0][468].y()
+                                val x133 = faceLandmarkerResult.faceLandmarks()[0][133].x()
+                                val y133 = faceLandmarkerResult.faceLandmarks()[0][133].y()
+
+                                val x473 = faceLandmarkerResult.faceLandmarks()[0][473].x()
+                                val y473 = faceLandmarkerResult.faceLandmarks()[0][473].y()
+                                val x463 = faceLandmarkerResult.faceLandmarks()[0][463].x()
+                                val y463 = faceLandmarkerResult.faceLandmarks()[0][463].y()
+                                val faceScale1 =
+                                    (sqrt(((x133 - x468) * (x133 - x468) + (y133 - y468) * (y133 - y468)).toDouble())) * 2
+                                val faceScale2 =
+                                    (sqrt(((x463 - x473) * (x463 - x473) + (y463 - y473) * (y463 - y473)).toDouble())) * 2
 
 //                        println("Face Scale: $faceScale")
 
 
-                        val (newX, newY) = normalizeTouch(
-                            x0 * renderer.width,
-                            y0 * renderer.height,
-                            renderer.width.toFloat(),
-                            renderer.height.toFloat()
-                        )
-                        renderer.setPosBULDGE(newX, newY)
-                        renderer.setPosSCALE(faceScale.toFloat())
+                                val (rX, rY) = normalizeTouch(
+                                    x468 * renderer.width,
+                                    y468 * renderer.height,
+                                    renderer.width.toFloat(),
+                                    renderer.height.toFloat()
+                                )
+                                val (lX, lY) = normalizeTouch(
+                                    x473 * renderer.width,
+                                    y473 * renderer.height,
+                                    renderer.width.toFloat(),
+                                    renderer.height.toFloat()
+                                )
+                                val filter = renderer.current2DFilter
+                                if (filter is BulgeFilterEyes) {
+                                    filter.setPosBULDGEDouble(rX, rY, lX, lY)
+                                    filter.setPosSCALEDouble(
+                                        faceScale1.toFloat(),
+                                        faceScale2.toFloat()
+                                    )
+                                }
+                            }
+
+
+                            FilterTypes.GLASSES -> {
+                                return
+                            }
+
+                            FilterTypes.EYE_MOUTH -> {
+                                val landmarks = faceLandmarkerResult.faceLandmarks()[0]
+                                val filter = renderer.currentOesFilter
+                                if (filter is EyeMouthMaskFilter) {
+                                    filter.updateFaceLandmarks(landmarks)
+                                }
+                            }
+
+                            FilterTypes.EYE_RECT -> {
+                                return
+                            }
+
+                            else -> {
+                                return
+                            }
+                        }
+                        glSurface.requestRender()
                     }
                 }
-
-                FilterTypes.BULGE_DOUBLE -> {
-                    if (faceMeshResult.multiFaceLandmarks().size > 0) {
-
-
-                        //468 right 473 left center
-                        val x468 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[468].x
-                        val y468 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[468].y
-                        val x133 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[133].x
-                        val y133 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[133].y
-
-                        val x473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].x
-                        val y473 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[473].y
-                        val x463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].x
-                        val y463 = faceMeshResult.multiFaceLandmarks()[0].landmarkList[463].y
-                        val faceScale1 =
-                            (sqrt(((x133 - x468) * (x133 - x468) + (y133 - y468) * (y133 - y468)).toDouble())) * 2
-                        val faceScale2 =
-                            (sqrt(((x463 - x473) * (x463 - x473) + (y463 - y473) * (y463 - y473)).toDouble())) * 2
-
-//                        println("Face Scale: $faceScale")
-
-
-                        val (rX, rY) = normalizeTouch(
-                            x468 * renderer.width,
-                            y468 * renderer.height,
-                            renderer.width.toFloat(),
-                            renderer.height.toFloat()
-                        )
-                        val (lX, lY) = normalizeTouch(
-                            x473 * renderer.width,
-                            y473 * renderer.height,
-                            renderer.width.toFloat(),
-                            renderer.height.toFloat()
-                        )
-
-                        renderer.setPosBULDGEDouble(rX, rY, lX, lY)
-                        renderer.setPosSCALEDouble(faceScale1.toFloat(), faceScale2.toFloat())
-                    }
-                }
-
-
-                FilterTypes.GLASSES -> {
-                    renderer.faceMeshResult = faceMeshResult
-                }
-
-                FilterTypes.EYE_MOUTH -> {
-                    renderer.faceMeshResult = faceMeshResult
-                }
-
-                FilterTypes.EYE_RECT -> {
-                    renderer.faceMeshResult = faceMeshResult
-                }
-
-                else -> {
-                    return@setResultListener
-                }
-            }
-//            if (!isRecord)
-            glSurface.requestRender()
-        }
-
-        //face mesh creates new context on the same thread
-        val core = EglCore(EGL14.eglGetCurrentContext(), EglCore.FLAG_TRY_GLES3)
-
-        var temp: AppTextureFrame? = null
-
-        renderer.readCallback = { w, h ->
-            executor.execute {
-                val frameTimeNanos = System.nanoTime()
-                if (mOffscreenSurface == null) {
-                    mOffscreenSurface = OffscreenSurface(core, w, h)
-                    mOffscreenSurface!!.makeCurrent()
-                    glTextureManager.initForUse(w, h)
-                    temp = AppTextureFrame(glTextureManager.recordTexture, w, h)
-                }
-
-                glTextureManager.rotate(if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) true else false)
-                glTextureManager.onDrawForKHR(
-                    glTextureManager.recordTexture,
-                )
-                temp?.timestamp = frameTimeNanos
-                facemesh!!.send(temp)
-//              mOffscreenSurface!!.swapBuffers() //// Not Needed as facemesh will swap buffers
-            }
+            )
         }
     }
 
@@ -844,6 +827,11 @@ class MainActivity : AppCompatActivity() {
             cameraProvider!!.unbindAll()
             isCameraInitialized = false
         }
+//        backgroundExecutor.execute {
+//            if (faceLandmarkerHelper.isClose()) {
+//                faceLandmarkerHelper.setupFaceLandmarker()
+//            }
+//        }
     }
 
     override fun onResume() {
@@ -853,10 +841,14 @@ class MainActivity : AppCompatActivity() {
             if (mainActivityBinding.RvFilterList.adapter != null)
                 mainActivityBinding.RvFilterList.scrollToPosition(0)
         }
+//        if(this::faceLandmarkerHelper.isInitialized) {
+//            backgroundExecutor.execute { faceLandmarkerHelper.clearFaceLandmarker() }
+//        }
     }
 
     companion object {
         internal const val TAG = "MainActivity"
+        private const val MP_FACE_LANDMARKER_TASK = "face_landmarker.task"
         const val GL_VERSION = 3
 
         init {

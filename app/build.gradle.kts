@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.avoid.facepoint"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.avoid.facepoint"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
@@ -62,6 +62,7 @@ android {
         }
     }
     buildToolsVersion = "34.0.0"
+    ndkVersion = "29.0.14206865"
 }
 
 dependencies {
@@ -69,8 +70,10 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.7.1")
     implementation("androidx.media3:media3-ui:1.7.1")
 
-    implementation(libs.facemesh)
-    implementation(libs.solution.core)
+//    implementation(libs.facemesh)
+//    implementation(libs.solution.core)
+
+    implementation(libs.tasks.vision)
 
     implementation(libs.material)
     implementation(libs.androidx.camera.core)
