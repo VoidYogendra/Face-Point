@@ -110,14 +110,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var renderer: VoidRender
     private lateinit var context: Context
     private lateinit var mainActivityBinding: MainActivityBinding
-    private var isRecording = false
     private var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
     private var rotation = 0
     private var isGrantedCam = false
     private var isGrantedStorage = false
     private var cameraProvider: ProcessCameraProvider? = null
 
-    var item = 0
+    var lastItem = 0
+    var currentItem = 0
 
     private val handlerThread = HandlerThread("TEST").apply { start() }
     private val handler = Handler(handlerThread.looper)
@@ -204,9 +204,9 @@ class MainActivity : AppCompatActivity() {
 
         val dataSet = arrayOf(
             FilterItem(R.drawable.a, FilterTypes.DEFAULT, null),
+            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, null),
             FilterItem(R.drawable.e, FilterTypes.BULGE, null),
             FilterItem(R.drawable.d, FilterTypes.BULGE_DOUBLE, null),
-            FilterItem(R.drawable.b, FilterTypes.EYE_MOUTH, null),
 //            FilterItem(R.drawable.c, FilterTypes.EYE_RECT,  null),
 //            FilterItem(R.drawable.f, FilterTypes.GLASSES,  null),
             FilterItem(R.drawable.g, FilterTypes.INVERSE, null),
@@ -249,82 +249,21 @@ class MainActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
         snap.attachToRecyclerView(recyclerView)
         val linearLayoutManager = recyclerView.layoutManager!! as LinearLayoutManager
+        val render = renderer
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
                 val visibleItemCount: Int = linearLayoutManager.childCount
                 val firstVisibleItemPosition: Int =
                     linearLayoutManager.findFirstVisibleItemPosition()
-                val lastItem = firstVisibleItemPosition + visibleItemCount
-                if (lastItem != item) {
+                lastItem = firstVisibleItemPosition + visibleItemCount
+                if (lastItem != currentItem) {
                     Log.e(TAG, "onScrolled: $lastItem")
                     val filter = adapter.dataSet[lastItem - 1]
-                    val render = renderer
                     render.onDrawCallback.add {
-                        render.filterTypes = filter.filterTypes
                         glSurface.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
-                        var oesFilter: GPUFilter? = null
-                        var filter2D: GPUFilter? = null
-                        when (filter.filterTypes) {
-                            FilterTypes.DEFAULT -> {
-                                oesFilter = DefaultOESFilter(context)
-                                filter2D = Default2DFilter(context)
-                            }
-
-                            FilterTypes.LUT -> {
-                                render.loadLUT(filter.lutFileName!!)
-                                oesFilter = LutOESFilter(context, renderer)
-                                filter2D = Default2DFilter(context)
-                            }
-
-                            FilterTypes.INVERSE -> {
-                                oesFilter = InverseOESFilter(context, renderer)
-                                filter2D = Default2DFilter(context)
-                            }
-
-                            FilterTypes.BULGE -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                oesFilter = DefaultOESFilter(context)
-                                filter2D = BulgeFilter(context)
-                            }
-
-                            FilterTypes.BULGE_DOUBLE -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                oesFilter = DefaultOESFilter(context)
-                                filter2D = BulgeFilterEyes(context)
-                            }
-
-                            FilterTypes.GLASSES -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-
-                            }
-
-                            FilterTypes.EYE_MOUTH -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                                val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
-                                val matrix = Matrix()
-                                matrix.preScale(-1f, 1f)
-                                matrix.postRotate(180f)
-                                val overlayImageBitmap = Bitmap.createBitmap(
-                                    source,
-                                    0,
-                                    0,
-                                    source.width,
-                                    source.height,
-                                    matrix,
-                                    true
-                                )
-                                oesFilter = EyeMouthMaskFilter(context, overlayImageBitmap)
-                                filter2D = Default2DFilter(context)
-                            }
-
-                            FilterTypes.EYE_RECT -> {
-                                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-                            }
-                        }
-                        if (oesFilter != null && filter2D != null)
-                            render.setFilters(oesFilter, filter2D)
-
+                        render.filterTypes = filter.filterTypes
+                        setFilterItem(filter)
                         if (BuildConfig.DEMO)
                             renderer.rotateVideo()
                         else
@@ -335,7 +274,7 @@ class MainActivity : AppCompatActivity() {
                             }
                     }
 
-                    item = lastItem
+                    currentItem = lastItem
                 }
             }
         })
@@ -352,13 +291,13 @@ class MainActivity : AppCompatActivity() {
                     delay(500) // 500ms delay for long press
                     btn.setColorFilter(Color.RED)
                     isLongPress = true
-                    isRecording = true // Start recording
+                    startRecording()
                 }
             } else if (motionEvent.action == MotionEvent.ACTION_UP) {
                 val btn = view as ImageButton
                 btn.setColorFilter(Color.WHITE)
                 if (isLongPress) {
-                    isRecording = false // Stop recording
+                    stopRecording()
                 } else {
                     takePicture() // Call the function to take a picture
                 }
@@ -384,78 +323,134 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val encoder = Encoder()
-        var record = false
-
-        CoroutineScope(Dispatchers.IO).launch {
-            val fps = 60
-            val glTextureManager = GLTextureManager(context)
-            var frame = 0
-            var outputPath: String? = null
-            while (true) {
+        renderer.frameListener = {
+            if (isRecordingInitialized) {
                 val frameTimeNanos = System.nanoTime()
-                if (isRecording) {
-                    if (!record) {
-
-                        val timeStamp =
-                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-
-
-                        // Create the filename with the timestamp
-                        val fileName = String.format(
-                            Locale.getDefault(),
-                            "%dX%d_%s.mp4",
-                            renderer.width,
-                            renderer.height,
-                            timeStamp
-                        )
-                        outputPath = File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            fileName
-                        ).toString()
-                        encoder.prepareEncoder(
-                            fps, renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
-                            GL_VERSION, outputPath
-                        )
-                        handler.post {
-                            encoder.mInputSurface!!.makeCurrent()
-                            glTextureManager.initForRecord(
-                                renderer.cameraHeight,
-                                renderer.cameraWidth
-                            )
-                        }
-                        record = true
-                    } else {
-                        while (frame >= renderer.frame)
-                            delay(1)
-                        frame = renderer.frame
-                        handler.post {
-                            encoder.drainEncoder(false)
-                            if (record) {
-                                glTextureManager.onDrawForRecord(renderer.glTextureManager.recordTexture)
-                                encoder.mInputSurface!!.setPresentationTime(frameTimeNanos)
-                                encoder.mInputSurface!!.swapBuffers()
-                            }
-                        }
-                    }
-                }
-
-                if (!isRecording && record) {
-                    record = false
-                    handler.post {
-                        encoder.drainEncoder(true)
-                        encoder.releaseEncoder()
-                        Log.e(TAG, "startCamera: DONE")
-                    }
-                    outputPath?.let {
-                        updateContent(it)
+                handler.post {
+                    if (isRecordingInitialized) {
+                        recTextureManager?.onDrawForRecord(renderer.glTextureManager.recordTexture)
+                        encoder.setPresentationTimeAndSwap(frameTimeNanos)
                     }
                 }
             }
         }
-
     }
 
+    fun setFilterItem(filter: FilterItem){
+        var oesFilter: GPUFilter? = null
+        var filter2D: GPUFilter? = null
+        when (filter.filterTypes) {
+            FilterTypes.DEFAULT -> {
+                oesFilter = DefaultOESFilter(context)
+                filter2D = Default2DFilter(context)
+            }
+
+            FilterTypes.LUT -> {
+                renderer.loadLUT(filter.lutFileName!!)
+                oesFilter = LutOESFilter(context, renderer)
+                filter2D = Default2DFilter(context)
+            }
+
+            FilterTypes.INVERSE -> {
+                oesFilter = InverseOESFilter(context, renderer)
+                filter2D = Default2DFilter(context)
+            }
+
+            FilterTypes.BULGE -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                oesFilter = DefaultOESFilter(context)
+                filter2D = BulgeFilter(context)
+            }
+
+            FilterTypes.BULGE_DOUBLE -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                oesFilter = DefaultOESFilter(context)
+                filter2D = BulgeFilterEyes(context)
+            }
+
+            FilterTypes.GLASSES -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+
+            }
+
+            FilterTypes.EYE_MOUTH -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+                val source = BitmapFactory.decodeStream(assets.open("monke.jpg"))
+                val matrix = Matrix()
+                matrix.preScale(-1f, 1f)
+                matrix.postRotate(180f)
+                val overlayImageBitmap = Bitmap.createBitmap(
+                    source,
+                    0,
+                    0,
+                    source.width,
+                    source.height,
+                    matrix,
+                    true
+                )
+                oesFilter = EyeMouthMaskFilter(context, overlayImageBitmap)
+                filter2D = Default2DFilter(context)
+            }
+
+            FilterTypes.EYE_RECT -> {
+                glSurface.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+            }
+        }
+        if (oesFilter != null && filter2D != null)
+            renderer.setFilters(oesFilter, filter2D)
+    }
+
+    val encoder = Encoder()
+    private var recTextureManager: GLTextureManager? = null
+    private var outputPath: String? = null
+
+    @Volatile
+    private var isRecordingInitialized = false
+
+    fun startRecording() {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val fileName = String.format(Locale.getDefault(), "%dX%d_%s.mp4", renderer.width, renderer.height, timeStamp)
+
+        outputPath = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            fileName
+        ).toString()
+
+        handler.post {
+            if (recTextureManager == null) {
+                recTextureManager = GLTextureManager(context)
+            }
+
+            encoder.prepareEncoder(
+                renderer.cameraHeight, renderer.cameraWidth, renderer.eglContext!!,
+                GL_VERSION, outputPath!!
+            )
+            encoder.startRecording()
+            encoder.mInputSurface!!.makeCurrent()
+
+            recTextureManager!!.initForRecord(renderer.cameraHeight, renderer.cameraWidth)
+            encoder.requestKeyFrame()
+
+            isRecordingInitialized = true
+        }
+    }
+
+    fun stopRecording() {
+        isRecordingInitialized = false
+
+        handler.post {
+            encoder.stopRecording()
+            recTextureManager?.release()
+            recTextureManager = null
+
+            outputPath?.let { path ->
+                updateContent(path)
+                runOnUiThread {
+                    Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
     private val executorImage: ExecutorService = Executors.newSingleThreadExecutor()
     private var mOffscreenSurfaceImage: OffscreenSurface? = null
     private var glSaveImage: GLTextureManager? = null
@@ -517,9 +512,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startCamera() {
-        if (isCameraInitialized) return
-        isCameraInitialized = true
-        Log.e(TAG, "startCamera:")
+        Log.e(TAG, "startCamera: XXXXXXXXX")
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProvider = cameraProviderFuture.get()
         cameraProviderFuture.addListener({
@@ -601,9 +594,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startDemoVideo() {
-        if (isCameraInitialized) return
-        isCameraInitialized = true
-        Log.e(TAG, "startCamera:")
+        Log.e(TAG, "startCamera: XXXXXXXXX")
         val surfaceTexture = renderer.getSurfaceTexture()
         val surface = Surface(surfaceTexture)
 
@@ -626,12 +617,6 @@ class MainActivity : AppCompatActivity() {
         player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(res: VideoSize) {
                 super.onVideoSizeChanged(res)
-//                val (mWidth, mHeight) = resizeToFitScreen(
-//                    res.width,
-//                    res.height,
-//                    renderer.width,
-//                    renderer.height
-//                )
                 renderer.resize(res.width, res.height, renderer.width, renderer.height)
 
             }
@@ -641,7 +626,6 @@ class MainActivity : AppCompatActivity() {
         player.play()
 
     }
-
     private fun permissions() {
 
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
@@ -836,14 +820,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!isCameraInitialized && cameraProvider != null) {
+        if (cameraProvider != null) {
             sourceContent()
-            if (mainActivityBinding.RvFilterList.adapter != null)
-                mainActivityBinding.RvFilterList.scrollToPosition(0)
         }
-//        if(this::faceLandmarkerHelper.isInitialized) {
-//            backgroundExecutor.execute { faceLandmarkerHelper.clearFaceLandmarker() }
-//        }
     }
 
     companion object {

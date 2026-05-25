@@ -91,7 +91,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
     private var textureID2D = -1
 
     private var aspectMatrix = FloatArray(16)
-    private var aspectMatrix2D = FloatArray(16)
 
     val glTextureManager = GLTextureManager(context)
 
@@ -113,7 +112,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             current2DFilter?.onSurfaceCreated()
 
             currentOesFilter?.onSurfaceChanged(cameraWidth, cameraHeight, aspectMatrix)
-            current2DFilter?.onSurfaceChanged(width, height, aspectMatrix2D)
+            val scaleMatrix = FloatArray(16)
+            Matrix.setIdentityM(scaleMatrix, 0)
+            current2DFilter?.onSurfaceChanged(width, height, scaleMatrix)
         }
     }
 
@@ -143,9 +144,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         matrix.surface(width, height)
         matrix.frame(width, height)
         maskMatrix = matrix.doIT(maskMatrix)
-
-        currentOesFilter?.onSurfaceChanged(cameraWidth, cameraHeight, aspectMatrix)
-        current2DFilter?.onSurfaceChanged(width, height, aspectMatrix2D)
     }
 
     fun onSurfaceChanged(width: Int, height: Int) {
@@ -172,12 +170,6 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
             0
         )
 
-
-        val scaleMatrix = FloatArray(16)
-        Matrix.setIdentityM(scaleMatrix, 0)
-        aspectMatrix2D = scaleMatrix
-        gl.glUniformMatrix4fv(matrixHandle2D, 1, false, aspectMatrix2D, 0)
-
         glTextureManager.initForRecord(width, height)
     }
 
@@ -195,6 +187,9 @@ class VoidRender(val context: Context) : GLSurfaceView.Renderer {
         Matrix.setIdentityM(aspectMatrix, 0)
 
         currentOesFilter?.onSurfaceChanged(cameraWidth, cameraHeight, aspectMatrix)
+        val scaleMatrix = FloatArray(16)
+        Matrix.setIdentityM(scaleMatrix, 0)
+        current2DFilter?.onSurfaceChanged(width, height, scaleMatrix)
     }
 
     fun rotate(flip: Boolean) {
