@@ -62,12 +62,14 @@
 
 | Filter Name     | Preview                                                         | Filter Name    | Preview                                                        |
 |-----------------|-----------------------------------------------------------------|----------------|----------------------------------------------------------------|
-| `2_monkey`      | <img src="screenshots/2_monkey.png" style="width:200px;"/>      | `3_eye_censor` | <img src="screenshots/3_eye_censor.png" style="width:200px;"/> |
+| `2_monkey`      | <img src="screenshots/2_monkey.png" style="width:200px;"/>      | `❌3_eye_censor` | <img src="screenshots/3_eye_censor.png" style="width:200px;"/> |
 | `4_googly_eyes` | <img src="screenshots/4_googly_eyes.png" style="width:200px;"/> | `5_chad`       | <img src="screenshots/5_chad.png" style="width:200px;"/>       |
-| `6_glsses`      | <img src="screenshots/6_glsses.png" style="width:200px;"/>      | `7_invert`     | <img src="screenshots/7_invert.png" style="width:200px;"/>     |
+| `❌6_glsses`      | <img src="screenshots/6_glsses.png" style="width:200px;"/>      | `7_invert`     | <img src="screenshots/7_invert.png" style="width:200px;"/>     |
 | `8_b&w`         | <img src="screenshots/8_b&w.png" style="width:200px;"/>         | `9_cine_still` | <img src="screenshots/9_cine_still.png" style="width:200px;"/> |
 | `10_sunset`     | <img src="screenshots/10_sunset.png" style="width:200px;"/>     | `11_sunset_2`  | <img src="screenshots/11_sunset_2.png" style="width:200px;"/>  |
 | `12_BW1`        | <img src="screenshots/12_BW1.png" style="width:200px;"/>        | Coming Soon... | ☁️☁️☁️☁️☁️☁️☁️                                                 |
+
+filters with ❌ are removed
 
 ### 🚀 Getting Started
 
