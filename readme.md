@@ -19,6 +19,7 @@
 - **18-09-2025** → Fixed **`sampler3D` crash** on Mali GPUs by replacing it with `sampler2D` for both **Mali** and **Adreno**, keeping the **same visual quality** with manual slice interpolation.
 - **19-09-2025** → Fixed ** fixed Abstract screen glitch noise on last BW1.cube filter** by replacing it with original `BW1.cube` file.
 - **15-10-2025** → Fixed **`glTexImage2D` glError (0x502)** on Mali GPUs glError (0x502) is now fixed on LUT filters.
+- ⭐ **25-05-2026** → Added audio recording support, restructured the rendering pipeline for decoupled, modular filters, fixed the resume bug (app now retains the active filter instead of resetting to index 0), and applied rotation fixes across most filters.
 ---
 
 ### Tech Stack Highlights
